@@ -1,0 +1,147 @@
+---
+title: "Introduction to ZBar"
+description: "Open source barcode reader library for reading barcodes from video streams, images, and sensors"
+---
+
+ZBar is an open source software suite for reading bar codes from various sources, including video streams, image files, and raw intensity sensors. It provides a comprehensive set of tools and libraries for integrating barcode scanning functionality into your applications.
+
+## What is ZBar?
+
+ZBar Bar Code Reader is a complete barcode scanning solution that includes:
+
+- A high-performance **decoder library** for reading multiple barcode formats
+- **Command-line tools** for scanning images and video devices
+- **GUI applications** with live video preview and scanning
+- **Language bindings** for C, C++, Python, Perl, and Java
+- **GUI widgets** for Qt, GTK, and PyGTK integration
+
+## Supported Barcode Formats
+
+ZBar supports a wide range of 1D and 2D barcode symbologies:
+
+<CardGroup cols={2}>
+  <Card title="1D Barcodes" icon="barcode">
+    - EAN-13/UPC-A
+    - UPC-E
+    - EAN-8
+    - Code 128
+    - Code 93
+    - Code 39
+    - Codabar
+    - Interleaved 2 of 5
+    - ISBN-10 and ISBN-13
+  </Card>
+  <Card title="2D Barcodes" icon="qrcode">
+    - QR Code
+    - SQ Code
+  </Card>
+</CardGroup>
+
+## Key Capabilities
+
+### Multi-Source Input
+
+ZBar can decode barcodes from multiple sources:
+
+- **Static Images**: Scan barcode images in various formats using ImageMagick or GraphicsMagick
+- **Video Devices**: Real-time scanning from webcams and other video capture devices via Video4Linux
+- **Raw Data**: Process barcode data from custom sensors or image sources
+
+### Cross-Platform Support
+
+ZBar works across major platforms:
+
+- **Linux**: Full support with Video4Linux integration
+- **macOS**: Native support with Homebrew installation
+- **Windows**: DirectShow and Video for Windows (VfW) support
+- **Mobile**: iOS and Android bindings available
+
+### Flexible Integration
+
+Multiple integration options for different use cases:
+
+<Steps>
+  <Step title="Command-Line Tools">
+    Use `zbarimg` to scan image files or `zbarcam` for live video scanning
+  </Step>
+  <Step title="C/C++ Library">
+    Link against `libzbar` for low-level integration in native applications
+  </Step>
+  <Step title="Language Bindings">
+    Use Python, Perl, or Java bindings for high-level scripting
+  </Step>
+  <Step title="GUI Widgets">
+    Embed scanning widgets directly into Qt or GTK applications
+  </Step>
+</Steps>
+
+## Architecture Overview
+
+ZBar's architecture is organized into layers, each providing different levels of abstraction:
+
+### Low-Level Components
+
+**Scanner**: Processes linear intensity sample streams to detect bar patterns
+
+**Decoder**: Extracts barcode data from streams of bar and space widths
+
+### Mid-Level Components
+
+**ImageScanner**: Scans 2-D images for barcodes using configurable symbologies
+
+**Video**: Abstracts video device access for cross-platform camera input
+
+**Window**: Provides platform-agnostic display output for visual feedback
+
+### High-Level Components
+
+**Processor**: Self-contained image processor with optional GUI display
+
+**GUI Widgets**: Ready-to-use components for Qt and GTK applications
+
+**Language Bindings**: High-level APIs for Python, Perl, Java, and other languages
+
+<Note>
+  The scanner/decoder library core requires only standard library functions and works on almost any platform. Additional dependencies are only needed for specific features like video input or GUI display.
+</Note>
+
+## Use Cases
+
+ZBar is ideal for a variety of barcode scanning applications:
+
+- **Retail and Inventory**: Product scanning and inventory management
+- **Library Systems**: ISBN scanning for book cataloging
+- **Access Control**: QR code-based authentication and ticketing
+- **Logistics**: Package tracking and shipping label scanning
+- **Mobile Applications**: Integrated barcode scanning in iOS/Android apps
+- **Document Processing**: Automated form processing and data capture
+
+## DBus Integration
+
+ZBar supports sending scanned codes via DBus, enabling integration with other applications and system services. This allows you to:
+
+- Monitor barcode scans from multiple applications
+- Integrate scanning with system automation tools
+- Build distributed barcode processing systems
+
+## Getting Started
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install ZBar on your system using package managers or build from source
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Scan your first barcode in minutes with simple examples
+  </Card>
+</CardGroup>
+
+## Project Information
+
+- **License**: LGPL 2.1 (library), GPL 2.0 (applications)
+- **Repository**: [github.com/mchehab/zbar](https://github.com/mchehab/zbar)
+- **Downloads**: [linuxtv.org/downloads/zbar](https://linuxtv.org/downloads/zbar/)
+- **Binaries**: Pre-built packages available for Ubuntu, macOS, and Windows
+
+<Tip>
+  ZBar has been actively maintained since 2007 and continues to receive updates for modern platforms and barcode formats.
+</Tip>

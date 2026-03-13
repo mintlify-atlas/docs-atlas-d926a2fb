@@ -1,0 +1,265 @@
+---
+title: "Image Scanner"
+description: "Mid-level image scanning interface for detecting barcodes in 2D images"
+---
+
+## Overview
+
+The Image Scanner (`zbar_image_scanner_t`) provides a mid-level interface for scanning 2D images and detecting barcodes. It processes grayscale images and returns decoded symbol results.
+
+## Data Type
+
+```c
+typedef struct zbar_image_scanner_s zbar_image_scanner_t;
+```
+
+Opaque image scanner object that maintains state between scans.
+
+## Constructor and Destructor
+
+### zbar_image_scanner_create()
+
+```c
+zbar_image_scanner_t* zbar_image_scanner_create(void)
+```
+
+Creates a new image scanner instance.
+
+**Returns:** Pointer to new image scanner object.
+
+### zbar_image_scanner_destroy()
+
+```c
+void zbar_image_scanner_destroy(zbar_image_scanner_t *scanner)
+```
+
+Destroys an image scanner and releases all associated resources.
+
+<ParamField path="scanner" type="zbar_image_scanner_t*" required>
+  Scanner instance to destroy
+</ParamField>
+
+## Scanning
+
+### zbar_scan_image()
+
+```c
+int zbar_scan_image(zbar_image_scanner_t *scanner, zbar_image_t *image)
+```
+
+Scans an image for barcodes. The image must be in Y800 or GRAY format.
+
+<ParamField path="scanner" type="zbar_image_scanner_t*" required>
+  Scanner instance
+</ParamField>
+
+<ParamField path="image" type="zbar_image_t*" required>
+  Grayscale image to scan
+</ParamField>
+
+**Returns:**
+- `> 0` - Number of symbols successfully decoded
+- `0` - No symbols found
+- `-1` - Error occurred
+
+**Since:** 0.9 (behavior changed to only accept grayscale)
+
+## Configuration
+
+### zbar_image_scanner_set_config()
+
+```c
+int zbar_image_scanner_set_config(
+    zbar_image_scanner_t *scanner,
+    zbar_symbol_type_t symbology,
+    zbar_config_t config,
+    int value
+)
+```
+
+Sets configuration for a specific symbology or all symbologies (use 0).
+
+<ParamField path="scanner" type="zbar_image_scanner_t*" required>
+  Scanner instance
+</ParamField>
+
+<ParamField path="symbology" type="zbar_symbol_type_t" required>
+  Symbol type to configure (0 for all)
+</ParamField>
+
+<ParamField path="config" type="zbar_config_t" required>
+  Configuration option to set
+</ParamField>
+
+<ParamField path="value" type="int" required>
+  Configuration value
+</ParamField>
+
+**Returns:** `0` on success, non-zero on failure
+
+**Since:** 0.4
+
+### zbar_image_scanner_get_config()
+
+```c
+int zbar_image_scanner_get_config(
+    zbar_image_scanner_t *scanner,
+    zbar_symbol_type_t symbology,
+    zbar_config_t config,
+    int *value
+)
+```
+
+Retrieves configuration value for a symbology.
+
+**Since:** 0.22
+
+### zbar_image_scanner_parse_config()
+
+```c
+static inline int zbar_image_scanner_parse_config(
+    zbar_image_scanner_t *scanner,
+    const char *config_string
+)
+```
+
+Parses a configuration string like "qrcode.enable=1" and applies it.
+
+**Since:** 0.4
+
+## Result Caching
+
+### zbar_image_scanner_enable_cache()
+
+```c
+void zbar_image_scanner_enable_cache(
+    zbar_image_scanner_t *scanner,
+    int enable
+)
+```
+
+Enables or disables the inter-image result cache. Useful for video streams to filter duplicate results and add consistency checking.
+
+<ParamField path="scanner" type="zbar_image_scanner_t*" required>
+  Scanner instance
+</ParamField>
+
+<ParamField path="enable" type="int" required>
+  1 to enable, 0 to disable
+</ParamField>
+
+<Note>
+Enabling the cache clears any existing cached results.
+</Note>
+
+### zbar_image_scanner_recycle_image()
+
+```c
+void zbar_image_scanner_recycle_image(
+    zbar_image_scanner_t *scanner,
+    zbar_image_t *image
+)
+```
+
+Removes previously decoded results from the scanner and image. More efficient than `zbar_image_set_symbols(image, NULL)`.
+
+**Since:** 0.10
+
+## Results
+
+### zbar_image_scanner_get_results()
+
+```c
+const zbar_symbol_set_t* zbar_image_scanner_get_results(
+    const zbar_image_scanner_t *scanner
+)
+```
+
+Retrieves decode results for the last scanned image.
+
+**Returns:** Symbol set container or NULL if no results available
+
+<Note>
+The symbol set does not have its reference count adjusted. Increment it if you need to keep results after the next scan.
+</Note>
+
+**Since:** 0.10
+
+## Data Handler
+
+### zbar_image_scanner_set_data_handler()
+
+```c
+zbar_image_data_handler_t* zbar_image_scanner_set_data_handler(
+    zbar_image_scanner_t *scanner,
+    zbar_image_data_handler_t *handler,
+    const void *userdata
+)
+```
+
+Sets up a callback function to be called when new results are available.
+
+**Returns:** Previously registered handler
+
+## D-Bus Integration
+
+### zbar_image_scanner_request_dbus()
+
+```c
+int zbar_image_scanner_request_dbus(
+    zbar_image_scanner_t *scanner,
+    int req_dbus_enabled
+)
+```
+
+Requests sending decoded codes via D-Bus.
+
+**Since:** 0.21
+
+## Usage Example
+
+```c scan_image.c
+#include <zbar.h>
+#include <stdio.h>
+
+int main() {
+    // Create scanner
+    zbar_image_scanner_t *scanner = zbar_image_scanner_create();
+    
+    // Configure to scan QR codes only
+    zbar_image_scanner_set_config(scanner, 0, ZBAR_CFG_ENABLE, 0);
+    zbar_image_scanner_set_config(scanner, ZBAR_QRCODE, ZBAR_CFG_ENABLE, 1);
+    
+    // Create and setup image
+    zbar_image_t *image = zbar_image_create();
+    zbar_image_set_format(image, zbar_fourcc('Y','8','0','0'));
+    zbar_image_set_size(image, 640, 480);
+    zbar_image_set_data(image, raw_data, width * height, NULL);
+    
+    // Scan the image
+    int n = zbar_scan_image(scanner, image);
+    
+    if (n > 0) {
+        // Extract results
+        const zbar_symbol_t *symbol = zbar_image_first_symbol(image);
+        for (; symbol; symbol = zbar_symbol_next(symbol)) {
+            zbar_symbol_type_t type = zbar_symbol_get_type(symbol);
+            const char *data = zbar_symbol_get_data(symbol);
+            printf("decoded %s: %s\n", 
+                   zbar_get_symbol_name(type), data);
+        }
+    }
+    
+    // Cleanup
+    zbar_image_destroy(image);
+    zbar_image_scanner_destroy(scanner);
+    
+    return 0;
+}
+```
+
+## See Also
+
+- [Image API](/api/image) - Image creation and management
+- [Symbol API](/api/symbol) - Working with decoded symbols
+- [Configuration](/advanced/configuration) - Configuration options

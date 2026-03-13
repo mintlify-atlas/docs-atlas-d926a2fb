@@ -1,0 +1,479 @@
+---
+title: "Symbol"
+description: "Decoded barcode symbol result object with data and metadata"
+---
+
+## Overview
+
+The Symbol (`zbar_symbol_t`) represents a decoded barcode result. It stores the symbol type, decoded data, quality metrics, and location information.
+
+## Data Types
+
+```c
+typedef struct zbar_symbol_s zbar_symbol_t;
+typedef struct zbar_symbol_set_s zbar_symbol_set_t;
+```
+
+Opaque symbol and symbol set objects.
+
+## Symbol Types
+
+### zbar_symbol_type_t
+
+```c
+typedef enum zbar_symbol_type_e {
+    ZBAR_NONE        = 0,   // No symbol decoded
+    ZBAR_PARTIAL     = 1,   // Intermediate status
+    ZBAR_EAN2        = 2,   // GS1 2-digit add-on
+    ZBAR_EAN5        = 5,   // GS1 5-digit add-on
+    ZBAR_EAN8        = 8,   // EAN-8
+    ZBAR_UPCE        = 9,   // UPC-E
+    ZBAR_ISBN10      = 10,  // ISBN-10 (from EAN-13)
+    ZBAR_UPCA        = 12,  // UPC-A
+    ZBAR_EAN13       = 13,  // EAN-13
+    ZBAR_ISBN13      = 14,  // ISBN-13 (from EAN-13)
+    ZBAR_COMPOSITE   = 15,  // EAN/UPC composite
+    ZBAR_I25         = 25,  // Interleaved 2 of 5
+    ZBAR_DATABAR     = 34,  // GS1 DataBar (RSS)
+    ZBAR_DATABAR_EXP = 35,  // GS1 DataBar Expanded
+    ZBAR_CODABAR     = 38,  // Codabar
+    ZBAR_CODE39      = 39,  // Code 39
+    ZBAR_PDF417      = 57,  // PDF417
+    ZBAR_QRCODE      = 64,  // QR Code
+    ZBAR_SQCODE      = 80,  // SQ Code
+    ZBAR_CODE93      = 93,  // Code 93
+    ZBAR_CODE128     = 128, // Code 128
+} zbar_symbol_type_t;
+```
+
+### zbar_orientation_t
+
+```c
+typedef enum zbar_orientation_e {
+    ZBAR_ORIENT_UNKNOWN = -1,  // Unable to determine
+    ZBAR_ORIENT_UP,            // Upright, read left to right
+    ZBAR_ORIENT_RIGHT,         // Sideways, read top to bottom
+    ZBAR_ORIENT_DOWN,          // Upside-down, read right to left
+    ZBAR_ORIENT_LEFT,          // Sideways, read bottom to top
+} zbar_orientation_t;
+```
+
+**Since:** 0.11
+
+## Reference Counting
+
+### zbar_symbol_ref()
+
+```c
+void zbar_symbol_ref(
+    const zbar_symbol_t *symbol,
+    int refs
+)
+```
+
+Manipulates symbol reference count.
+
+<ParamField path="symbol" type="const zbar_symbol_t*" required>
+  Symbol object
+</ParamField>
+
+<ParamField path="refs" type="int" required>
+  Reference count change (+1 to increment, -1 to decrement)
+</ParamField>
+
+<Note>
+Increment when storing a new reference. Decrement when reference is no longer used. Do not refer to symbol after decrementing if the containing image was destroyed.
+</Note>
+
+**Since:** 0.9
+
+## Symbol Metadata
+
+### zbar_symbol_get_type()
+
+```c
+zbar_symbol_type_t zbar_symbol_get_type(
+    const zbar_symbol_t *symbol
+)
+```
+
+Retrieves the type of decoded symbol.
+
+**Returns:** Symbol type enum value
+
+### zbar_symbol_get_configs()
+
+```c
+unsigned int zbar_symbol_get_configs(
+    const zbar_symbol_t *symbol
+)
+```
+
+Retrieves symbology boolean config settings active during decode.
+
+**Returns:** Bitmask of configs
+
+**Since:** 0.11
+
+### zbar_symbol_get_modifiers()
+
+```c
+unsigned int zbar_symbol_get_modifiers(
+    const zbar_symbol_t *symbol
+)
+```
+
+Retrieves symbology modifier flags (e.g., GS1, AIM).
+
+**Returns:** Bitmask of modifier flags
+
+**Since:** 0.11
+
+### zbar_symbol_get_quality()
+
+```c
+int zbar_symbol_get_quality(
+    const zbar_symbol_t *symbol
+)
+```
+
+Retrieves a confidence metric for the symbol.
+
+**Returns:** Unscaled relative quantity where larger values indicate better quality
+
+<Note>
+The exact definition may change. Only the relative ordering between values is stable.
+</Note>
+
+**Since:** 0.9
+
+### zbar_symbol_get_count()
+
+```c
+int zbar_symbol_get_count(
+    const zbar_symbol_t *symbol
+)
+```
+
+Retrieves current cache count. Provides inter-frame reliability for video streams.
+
+**Returns:**
+- `< 0` - Symbol still uncertain
+- `0` - Symbol newly verified
+- `> 0` - Duplicate symbol count
+
+### zbar_symbol_get_orientation()
+
+```c
+zbar_orientation_t zbar_symbol_get_orientation(
+    const zbar_symbol_t *symbol
+)
+```
+
+Retrieves general orientation of decoded symbol.
+
+**Returns:** Coarse axis-aligned orientation or `ZBAR_ORIENT_UNKNOWN`
+
+**Since:** 0.11
+
+## Symbol Data
+
+### zbar_symbol_get_data()
+
+```c
+const char* zbar_symbol_get_data(
+    const zbar_symbol_t *symbol
+)
+```
+
+Retrieves data decoded from the symbol.
+
+**Returns:** Null-terminated data string
+
+### zbar_symbol_get_data_length()
+
+```c
+unsigned int zbar_symbol_get_data_length(
+    const zbar_symbol_t *symbol
+)
+```
+
+Retrieves length of binary data.
+
+**Returns:** Data length in bytes
+
+<Tip>
+Use this for binary data that may contain null bytes.
+</Tip>
+
+## Location Data
+
+### zbar_symbol_get_loc_size()
+
+```c
+unsigned zbar_symbol_get_loc_size(
+    const zbar_symbol_t *symbol
+)
+```
+
+Retrieves the number of points in the location polygon.
+
+**Returns:** Number of location points
+
+<Note>
+Currently returns scan locations where symbol was decoded, not a true polygon.
+</Note>
+
+### zbar_symbol_get_loc_x()
+
+```c
+int zbar_symbol_get_loc_x(
+    const zbar_symbol_t *symbol,
+    unsigned index
+)
+```
+
+Retrieves x-coordinate of a location point.
+
+<ParamField path="index" type="unsigned" required>
+  Zero-based point index
+</ParamField>
+
+**Returns:** X-coordinate or `-1` if index out of range
+
+### zbar_symbol_get_loc_y()
+
+```c
+int zbar_symbol_get_loc_y(
+    const zbar_symbol_t *symbol,
+    unsigned index
+)
+```
+
+Retrieves y-coordinate of a location point.
+
+**Returns:** Y-coordinate or `-1` if index out of range
+
+## Symbol Iteration
+
+### zbar_symbol_next()
+
+```c
+const zbar_symbol_t* zbar_symbol_next(
+    const zbar_symbol_t *symbol
+)
+```
+
+Iterates to the next symbol in the set.
+
+**Returns:** Next symbol or NULL when no more results
+
+## Composite Symbols
+
+### zbar_symbol_get_components()
+
+```c
+const zbar_symbol_set_t* zbar_symbol_get_components(
+    const zbar_symbol_t *symbol
+)
+```
+
+Retrieves components of a composite symbol.
+
+**Returns:** Symbol set containing components or NULL if already a physical symbol
+
+**Since:** 0.10
+
+### zbar_symbol_first_component()
+
+```c
+const zbar_symbol_t* zbar_symbol_first_component(
+    const zbar_symbol_t *symbol
+)
+```
+
+Iterates to first physical component of a composite result.
+
+**Returns:** First component or NULL if already physical
+
+**Since:** 0.10
+
+## XML Output
+
+### zbar_symbol_xml()
+
+```c
+char* zbar_symbol_xml(
+    const zbar_symbol_t *symbol,
+    char **buffer,
+    unsigned *buflen
+)
+```
+
+Prints XML representation of symbol to a buffer. Buffer is reallocated if necessary.
+
+**Returns:** Buffer pointer
+
+**Since:** 0.6
+
+## Symbol Set API
+
+### zbar_symbol_set_ref()
+
+```c
+void zbar_symbol_set_ref(
+    const zbar_symbol_set_t *symbols,
+    int refs
+)
+```
+
+Manipulates symbol set reference count.
+
+**Since:** 0.10
+
+### zbar_symbol_set_get_size()
+
+```c
+int zbar_symbol_set_get_size(
+    const zbar_symbol_set_t *symbols
+)
+```
+
+Retrieves the number of symbols in the set.
+
+**Since:** 0.10
+
+### zbar_symbol_set_first_symbol()
+
+```c
+const zbar_symbol_t* zbar_symbol_set_first_symbol(
+    const zbar_symbol_set_t *symbols
+)
+```
+
+Retrieves the first decoded symbol in a set.
+
+**Returns:** First symbol or NULL if set is empty
+
+**Since:** 0.10
+
+### zbar_symbol_set_first_unfiltered()
+
+```c
+const zbar_symbol_t* zbar_symbol_set_first_unfiltered(
+    const zbar_symbol_set_t *symbols
+)
+```
+
+Retrieves first symbol BEFORE filtering.
+
+**Returns:** First unfiltered symbol or NULL
+
+**Since:** 0.11
+
+## Helper Functions
+
+### zbar_get_symbol_name()
+
+```c
+const char* zbar_get_symbol_name(
+    zbar_symbol_type_t sym
+)
+```
+
+Retrieves string name for symbol type.
+
+**Returns:** Static string name or "UNKNOWN"
+
+### zbar_get_addon_name()
+
+```c
+const char* zbar_get_addon_name(
+    zbar_symbol_type_t sym
+)
+```
+
+Retrieves string name for addon encoding.
+
+**Returns:** Static string or empty string
+
+**Deprecated:** 0.11
+
+### zbar_get_orientation_name()
+
+```c
+const char* zbar_get_orientation_name(
+    zbar_orientation_t orientation
+)
+```
+
+Retrieves string name for orientation.
+
+**Returns:** Static string or "UNKNOWN"
+
+**Since:** 0.11
+
+## Usage Example
+
+```c symbol_example.c
+#include <zbar.h>
+#include <stdio.h>
+
+int main() {
+    zbar_image_scanner_t *scanner = zbar_image_scanner_create();
+    zbar_image_t *image = zbar_image_create();
+    
+    // Setup and scan image...
+    int n = zbar_scan_image(scanner, image);
+    
+    if (n > 0) {
+        // Get first symbol
+        const zbar_symbol_t *symbol = zbar_image_first_symbol(image);
+        
+        // Iterate through all symbols
+        for (; symbol; symbol = zbar_symbol_next(symbol)) {
+            // Get symbol type and data
+            zbar_symbol_type_t type = zbar_symbol_get_type(symbol);
+            const char *data = zbar_symbol_get_data(symbol);
+            unsigned int len = zbar_symbol_get_data_length(symbol);
+            
+            printf("Type: %s\n", zbar_get_symbol_name(type));
+            printf("Data: %.*s\n", len, data);
+            printf("Quality: %d\n", zbar_symbol_get_quality(symbol));
+            
+            // Get location
+            unsigned int loc_size = zbar_symbol_get_loc_size(symbol);
+            printf("Location points: %u\n", loc_size);
+            
+            for (unsigned int i = 0; i < loc_size; i++) {
+                int x = zbar_symbol_get_loc_x(symbol, i);
+                int y = zbar_symbol_get_loc_y(symbol, i);
+                printf("  Point %u: (%d, %d)\n", i, x, y);
+            }
+            
+            // Get orientation
+            zbar_orientation_t orient = zbar_symbol_get_orientation(symbol);
+            printf("Orientation: %s\n", 
+                   zbar_get_orientation_name(orient));
+            
+            // Check for composite
+            const zbar_symbol_set_t *components = 
+                zbar_symbol_get_components(symbol);
+            if (components) {
+                int comp_count = zbar_symbol_set_get_size(components);
+                printf("Composite with %d components\n", comp_count);
+            }
+        }
+    }
+    
+    zbar_image_destroy(image);
+    zbar_image_scanner_destroy(scanner);
+    return 0;
+}
+```
+
+## See Also
+
+- [Image Scanner](/api/image-scanner) - Scanning images
+- [Barcode Types](/concepts/barcode-types) - Supported symbologies
+- [Decoder API](/api/decoder) - Low-level decoding

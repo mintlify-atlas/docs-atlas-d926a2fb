@@ -1,0 +1,367 @@
+---
+title: "Video"
+description: "Mid-level video source abstraction for capturing images from video devices"
+---
+
+## Overview
+
+The Video interface (`zbar_video_t`) provides mid-level access to video capture devices. It handles device initialization, format negotiation, and frame capture.
+
+## Data Type
+
+```c
+typedef struct zbar_video_s zbar_video_t;
+```
+
+Opaque video object.
+
+## Constructor and Destructor
+
+### zbar_video_create()
+
+```c
+zbar_video_t* zbar_video_create(void)
+```
+
+Creates a new video object.
+
+**Returns:** Pointer to new video object
+
+### zbar_video_destroy()
+
+```c
+void zbar_video_destroy(zbar_video_t *video)
+```
+
+Destroys a video object and releases resources.
+
+## Device Management
+
+### zbar_video_open()
+
+```c
+int zbar_video_open(
+    zbar_video_t *video,
+    const char *device
+)
+```
+
+Opens and probes a video device.
+
+<ParamField path="video" type="zbar_video_t*" required>
+  Video object
+</ParamField>
+
+<ParamField path="device" type="const char*" required>
+  Platform-specific device name:
+  - Linux: "/dev/video0", "/dev/video1", etc.
+  - Windows: DirectShow DevicePath property
+</ParamField>
+
+**Returns:** `0` on success, `-1` on error
+
+### zbar_video_get_fd()
+
+```c
+int zbar_video_get_fd(const zbar_video_t *video)
+```
+
+Retrieves file descriptor for the open video device (Linux/Unix only, V4L2 only).
+
+**Returns:** File descriptor or `-1` if not available
+
+<Tip>
+Use with select()/poll() to detect when new images are available.
+</Tip>
+
+## Configuration
+
+### zbar_video_request_size()
+
+```c
+int zbar_video_request_size(
+    zbar_video_t *video,
+    unsigned width,
+    unsigned height
+)
+```
+
+Requests a preferred video image size from the device.
+
+<Note>
+Must be called before zbar_video_open(). The driver may adjust or ignore the request.
+</Note>
+
+**Returns:** `0` on success, `-1` if already initialized
+
+**Since:** 0.6
+
+### zbar_video_request_interface()
+
+```c
+int zbar_video_request_interface(
+    zbar_video_t *video,
+    int version
+)
+```
+
+Requests a preferred driver interface version.
+
+**Since:** 0.6
+
+### zbar_video_request_iomode()
+
+```c
+int zbar_video_request_iomode(
+    zbar_video_t *video,
+    int iomode
+)
+```
+
+Requests a preferred I/O mode:
+- `0` - Auto-detect
+- `1` - Force read()
+- `2` - Force mmap()
+- `3` - Force USERPTR (V4L2 only)
+
+<Note>
+Must be called before zbar_video_open(). Errors occur if mode is unsupported.
+</Note>
+
+**Since:** 0.7
+
+## Video Format
+
+### zbar_video_get_width()
+
+```c
+int zbar_video_get_width(const zbar_video_t *video)
+```
+
+**Returns:** Current output image width or `0` if not open
+
+### zbar_video_get_height()
+
+```c
+int zbar_video_get_height(const zbar_video_t *video)
+```
+
+**Returns:** Current output image height or `0` if not open
+
+### zbar_video_init()
+
+```c
+int zbar_video_init(
+    zbar_video_t *video,
+    unsigned long format
+)
+```
+
+Initializes video using a specific format.
+
+<ParamField path="format" type="unsigned long" required>
+  FourCC format code (e.g., zbar_fourcc('Y','8','0','0'))
+</ParamField>
+
+<Tip>
+Use zbar_negotiate_format() to automatically select the best format.
+</Tip>
+
+## Capture
+
+### zbar_video_enable()
+
+```c
+int zbar_video_enable(
+    zbar_video_t *video,
+    int enable
+)
+```
+
+Starts or stops video capture. All buffered images are retired when disabled.
+
+<ParamField path="enable" type="int" required>
+  Non-zero to start capture, zero to stop
+</ParamField>
+
+**Returns:** `0` on success, `-1` on error
+
+### zbar_video_next_image()
+
+```c
+zbar_image_t* zbar_video_next_image(zbar_video_t *video)
+```
+
+Retrieves the next captured image. Blocks until an image is available.
+
+**Returns:** Image object or NULL on error
+
+<Warning>
+The image must be released back to the video driver by destroying or recycling it.
+</Warning>
+
+## Video Controls
+
+### zbar_video_set_control()
+
+```c
+int zbar_video_set_control(
+    zbar_video_t *video,
+    const char *control_name,
+    int value
+)
+```
+
+Sets a video control value (brightness, contrast, exposure, etc.).
+
+**Since:** 0.20
+
+### zbar_video_get_control()
+
+```c
+int zbar_video_get_control(
+    zbar_video_t *video,
+    const char *control_name,
+    int *value
+)
+```
+
+Gets a video control value.
+
+**Since:** 0.20
+
+### zbar_video_get_controls()
+
+```c
+struct video_controls_s* zbar_video_get_controls(
+    const zbar_video_t *video,
+    int index
+)
+```
+
+Retrieves available controls from video source.
+
+**Since:** 0.20
+
+### zbar_video_get_resolutions()
+
+```c
+struct video_resolution_s* zbar_video_get_resolutions(
+    const zbar_video_t *video,
+    int index
+)
+```
+
+Retrieves available video resolutions.
+
+**Since:** 0.22
+
+## Error Handling
+
+### zbar_video_error_spew()
+
+```c
+static inline int zbar_video_error_spew(
+    const zbar_video_t *video,
+    int verbosity
+)
+```
+
+Displays error details to stderr.
+
+### zbar_video_error_string()
+
+```c
+static inline const char* zbar_video_error_string(
+    const zbar_video_t *video,
+    int verbosity
+)
+```
+
+Retrieves error detail string.
+
+### zbar_video_get_error_code()
+
+```c
+static inline zbar_error_t zbar_video_get_error_code(
+    const zbar_video_t *video
+)
+```
+
+Retrieves error type code.
+
+## Usage Example
+
+```c video_capture.c
+#include <zbar.h>
+#include <stdio.h>
+
+int main() {
+    zbar_video_t *video = zbar_video_create();
+    zbar_image_scanner_t *scanner = zbar_image_scanner_create();
+    
+    // Open video device
+    if (zbar_video_open(video, "/dev/video0") != 0) {
+        fprintf(stderr, "Failed to open video device\n");
+        return 1;
+    }
+    
+    // Initialize format
+    zbar_video_init(video, zbar_fourcc('Y','U','Y','V'));
+    
+    // Enable capture
+    zbar_video_enable(video, 1);
+    
+    printf("Capturing frames...\n");
+    
+    // Capture and scan frames
+    for (int i = 0; i < 100; i++) {
+        zbar_image_t *image = zbar_video_next_image(video);
+        
+        if (image) {
+            // Scan for barcodes
+            int n = zbar_scan_image(scanner, image);
+            
+            if (n > 0) {
+                const zbar_symbol_t *sym = zbar_image_first_symbol(image);
+                for (; sym; sym = zbar_symbol_next(sym)) {
+                    printf("Found %s: %s\n",
+                           zbar_get_symbol_name(zbar_symbol_get_type(sym)),
+                           zbar_symbol_get_data(sym));
+                }
+            }
+            
+            // Release image back to driver
+            zbar_image_destroy(image);
+        }
+    }
+    
+    // Cleanup
+    zbar_video_enable(video, 0);
+    zbar_image_scanner_destroy(scanner);
+    zbar_video_destroy(video);
+    
+    return 0;
+}
+```
+
+## Format Negotiation
+
+### zbar_negotiate_format()
+
+```c
+int zbar_negotiate_format(
+    zbar_video_t *video,
+    zbar_window_t *window
+)
+```
+
+Selects a compatible format between video input and window output. The selection algorithm attempts to use a format shared by both that is most useful for barcode scanning.
+
+**Returns:** `0` on success, `-1` on error
+
+## See Also
+
+- [Processor API](/api/processor) - High-level video processing
+- [Window API](/api/window) - Display output
+- [V4L2 Support](/advanced/v4l2-support) - Video4Linux2 details

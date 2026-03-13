@@ -1,0 +1,521 @@
+---
+title: 'Python Bindings'
+description: 'Read barcodes from images or video using Python'
+---
+
+## Overview
+
+The ZBar Python bindings provide a complete interface for reading barcodes from images and video streams in Python applications. The module supports both Python 2 and Python 3, offering a Pythonic API to the ZBar library's barcode scanning capabilities.
+
+<Note>
+The Python bindings are non-GUI focused and provide core scanning functionality. You will need PIL (Python Imaging Library) or Pillow to work with image files.
+</Note>
+
+## Installation
+
+<Steps>
+
+<Step title="Install via pip">
+Install the ZBar Python package directly from PyPI:
+
+```bash
+pip install zbar-py
+```
+
+Or for Python 3:
+
+```bash
+pip3 install zbar-py
+```
+</Step>
+
+<Step title="Install from source">
+Clone the repository and build the Python bindings:
+
+```bash
+git clone https://github.com/mchehab/zbar.git
+cd zbar/python
+python setup.py install
+```
+</Step>
+
+<Step title="Install dependencies">
+Make sure you have the ZBar library installed:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install libzbar0
+
+# macOS
+brew install zbar
+
+# Fedora/RHEL
+sudo dnf install zbar
+```
+</Step>
+
+</Steps>
+
+<Note>
+**Windows users:** The module will NOT load unless the ZBar library DLL (`libzbar-0.dll`) is available in your Windows system PATH.
+</Note>
+
+## Core Classes
+
+### ImageScanner
+
+The `ImageScanner` class is used to scan images for barcodes. It provides configuration options and maintains state between scans.
+
+```python
+import zbar
+
+# Create an ImageScanner instance
+scanner = zbar.ImageScanner()
+
+# Configure the scanner
+scanner.parse_config('enable')  # Enable all symbologies
+
+# Scan an image
+n = scanner.scan(image)  # Returns number of symbols found
+
+# Get results
+results = scanner.results
+```
+
+### Image
+
+The `Image` class wraps raw image data along with format and size metadata.
+
+```python
+# Create an image from raw data
+image = zbar.Image(width, height, 'Y800', raw_data)
+
+# Image properties
+width = image.width
+height = image.height
+format = image.format
+
+# Convert image format
+gray_image = image.convert('Y800')
+
+# Access decoded symbols
+for symbol in image.symbols:
+    print(symbol.type, symbol.data)
+```
+
+### Processor
+
+The `Processor` class provides high-level video scanning with a preview window and callback support.
+
+```python
+# Create a Processor
+proc = zbar.Processor()
+
+# Initialize with video device
+proc.init('/dev/video0')
+
+# Configure decoder
+proc.parse_config('enable')
+
+# Set up callback handler
+def handler(proc, image, closure):
+    for symbol in image.symbols:
+        print('Decoded:', symbol.type, symbol.data)
+
+proc.set_data_handler(handler)
+
+# Enable preview and start scanning
+proc.visible = True
+proc.active = True
+proc.user_wait()
+```
+
+### Symbol
+
+The `Symbol` class represents a decoded barcode symbol with its type, data, and location.
+
+```python
+symbol.type       # Barcode type (e.g., 'EAN13', 'QRCODE')
+symbol.data       # Decoded data as bytes
+symbol.quality    # Decode quality metric
+symbol.count      # Cache count for video streams
+symbol.location   # Barcode location points
+```
+
+## Configuration
+
+Configure decoder behavior using `parse_config()`:
+
+```python
+# Enable all symbologies
+scanner.parse_config('enable')
+
+# Enable specific symbology
+scanner.parse_config('qrcode.enable')
+
+# Disable a symbology
+scanner.parse_config('ean13.disable')
+
+# Set minimum data length
+scanner.parse_config('code128.min-length=6')
+
+# Set scanner density (lower = faster, less accurate)
+scanner.parse_config('x-density=1')
+scanner.parse_config('y-density=1')
+```
+
+## Complete Examples
+
+### Scanning an Image File
+
+This example shows how to scan a barcode from an image file using PIL/Pillow:
+
+<CodeGroup>
+
+```python scan_image.py
+#!/usr/bin/env python
+from sys import argv
+import zbar
+from PIL import Image
+
+if len(argv) < 2:
+    exit(1)
+
+# Create a reader
+scanner = zbar.ImageScanner()
+
+# Configure the reader
+scanner.parse_config('enable')
+
+# Obtain image data
+pil = Image.open(argv[1]).convert('L')
+width, height = pil.size
+raw = pil.tobytes()
+
+# Wrap image data
+image = zbar.Image(width, height, 'Y800', raw)
+
+# Scan the image for barcodes
+scanner.scan(image)
+
+# Extract results
+for symbol in image:
+    # Do something useful with results
+    print('decoded', symbol.type, 'symbol', '"%s"' % symbol.data)
+
+# Clean up
+del(image)
+```
+
+```python Python 3
+#!/usr/bin/env python3
+import sys
+import zbar
+from PIL import Image
+
+def scan_image(filename):
+    """Scan an image file and return decoded symbols."""
+    # Create scanner
+    scanner = zbar.ImageScanner()
+    scanner.parse_config('enable')
+    
+    # Load and convert image
+    pil = Image.open(filename).convert('L')
+    width, height = pil.size
+    raw = pil.tobytes()
+    
+    # Create ZBar image
+    image = zbar.Image(width, height, 'Y800', raw)
+    
+    # Scan
+    scanner.scan(image)
+    
+    # Return results
+    results = []
+    for symbol in image:
+        results.append({
+            'type': symbol.type,
+            'data': symbol.data.decode('utf-8'),
+            'quality': symbol.quality
+        })
+    
+    return results
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print('Usage: scan_image.py <image_file>')
+        sys.exit(1)
+    
+    results = scan_image(sys.argv[1])
+    for r in results:
+        print(f"Found {r['type']}: {r['data']}")
+```
+
+</CodeGroup>
+
+### Video Scanning with Processor
+
+Scan barcodes from a video device with automatic processing:
+
+```python processor.py
+#!/usr/bin/env python
+from sys import argv
+import zbar
+
+# Create a Processor
+proc = zbar.Processor()
+
+# Configure the Processor
+proc.parse_config('enable')
+
+# Initialize the Processor
+device = '/dev/video0'
+if len(argv) > 1:
+    device = argv[1]
+proc.init(device)
+
+# Setup a callback
+def my_handler(proc, image, closure):
+    # Extract results
+    for symbol in image.symbols:
+        # Do something useful with results
+        print('decoded', symbol.type, 'symbol', '"%s"' % symbol.data)
+
+proc.set_data_handler(my_handler)
+
+# Enable the preview window
+proc.visible = True
+
+# Initiate scanning
+proc.active = True
+try:
+    # Keep scanning until user provides key/mouse input
+    proc.user_wait()
+except zbar.WindowClosed:
+    pass
+```
+
+### Single Barcode Scan
+
+Process exactly one barcode from a video device:
+
+```python read_one.py
+#!/usr/bin/env python
+from sys import argv
+import zbar
+
+# Create a Processor
+proc = zbar.Processor()
+
+# Configure the Processor
+proc.parse_config('enable')
+
+# Initialize the Processor
+device = '/dev/video0'
+if len(argv) > 1:
+    device = argv[1]
+proc.init(device)
+
+# Enable the preview window
+proc.visible = True
+
+# Read at least one barcode (or until window closed)
+proc.process_one()
+
+# Hide the preview window
+proc.visible = False
+
+# Extract results
+for symbol in proc.results:
+    # Do something useful with results
+    print('decoded', symbol.type, 'symbol', '"%s"' % symbol.data)
+```
+
+## PIL/Pillow Integration
+
+The Python bindings work seamlessly with PIL (Python Imaging Library) or Pillow:
+
+```python
+from PIL import Image
+import zbar
+
+def scan_pil_image(pil_image):
+    """Scan a PIL Image object."""
+    scanner = zbar.ImageScanner()
+    scanner.parse_config('enable')
+    
+    # Convert to grayscale
+    pil_image = pil_image.convert('L')
+    width, height = pil_image.size
+    
+    # Get raw pixel data
+    raw = pil_image.tobytes()
+    
+    # Create ZBar image
+    image = zbar.Image(width, height, 'Y800', raw)
+    
+    # Scan
+    scanner.scan(image)
+    
+    # Return symbols
+    return list(image.symbols)
+
+# Usage
+pil_img = Image.open('barcode.png')
+symbols = scan_pil_image(pil_img)
+for s in symbols:
+    print(f"{s.type}: {s.data}")
+```
+
+## Image Format Support
+
+The ZBar Python bindings support several image formats:
+
+- `Y800` / `GRAY` - 8-bit grayscale (recommended)
+- `YUV` - YUV color space
+- `RGB3` / `BGR3` - 24-bit RGB
+- `RGB4` / `BGR4` - 32-bit RGB with alpha
+- `YUYV` / `UYVY` - YUV 4:2:2 packed
+- `422P` / `420P` - YUV planar formats
+
+<Note>
+For best performance, convert images to grayscale (`Y800`) before scanning.
+</Note>
+
+## Error Handling
+
+The Python bindings raise exceptions for errors:
+
+```python
+import zbar
+
+try:
+    proc = zbar.Processor()
+    proc.init('/dev/video99')  # Invalid device
+except Exception as e:
+    print(f"Error: {e}")
+
+try:
+    proc.user_wait()
+except zbar.WindowClosed:
+    print("Window was closed")
+```
+
+## Symbol Iteration
+
+Multiple ways to iterate over decoded symbols:
+
+```python
+# Iterate directly over image
+for symbol in image:
+    print(symbol.data)
+
+# Access symbols property
+for symbol in image.symbols:
+    print(symbol.data)
+
+# Get specific symbol
+symbols = list(image.symbols)
+first = symbols[0]
+```
+
+## Performance Tips
+
+<Steps>
+
+<Step title="Use grayscale images">
+Convert images to grayscale (`Y800`) format before scanning for best performance:
+
+```python
+pil = Image.open('image.jpg').convert('L')
+```
+</Step>
+
+<Step title="Adjust scan density">
+For faster scanning of high-resolution images, reduce scan density:
+
+```python
+scanner.parse_config('x-density=2')
+scanner.parse_config('y-density=2')
+```
+</Step>
+
+<Step title="Enable specific symbologies">
+Only enable the barcode types you need:
+
+```python
+scanner.parse_config('code128.enable')
+scanner.parse_config('qrcode.enable')
+scanner.parse_config('ean13.disable')
+```
+</Step>
+
+<Step title="Use the cache for video">
+Enable caching when scanning video to filter duplicates:
+
+```python
+scanner.enable_cache(True)
+```
+</Step>
+
+</Steps>
+
+## Python 2 vs Python 3
+
+The bindings work with both Python 2 and 3, but there are minor differences:
+
+```python
+# Python 2
+print 'decoded', symbol.type, 'symbol', '"%s"' % symbol.data
+
+# Python 3
+print('decoded', symbol.type, 'symbol', '"%s"' % symbol.data.decode('utf-8'))
+```
+
+In Python 3, `symbol.data` returns bytes and may need decoding to a string.
+
+## API Reference
+
+### ImageScanner Methods
+
+| Method | Description |
+|--------|-------------|
+| `parse_config(config)` | Parse and apply configuration string |
+| `set_config(symbology, config, value)` | Set specific configuration option |
+| `enable_cache(enable)` | Enable/disable inter-frame result cache |
+| `scan(image)` | Scan image and return number of symbols found |
+
+### Image Methods
+
+| Method | Description |
+|--------|-------------|
+| `convert(format)` | Convert image to specified format |
+| `__iter__()` | Iterate over decoded symbols |
+
+### Processor Methods
+
+| Method | Description |
+|--------|-------------|
+| `init(device)` | Initialize with video device |
+| `parse_config(config)` | Configure decoder |
+| `set_data_handler(handler)` | Set callback for decoded symbols |
+| `process_one()` | Process one frame and wait for result |
+| `process_image(image)` | Process a specific image |
+| `user_wait()` | Wait for user input (blocks) |
+
+### Symbol Properties
+
+| Property | Description |
+|----------|-------------|
+| `type` | Symbol type (e.g., 'QRCODE', 'EAN13') |
+| `data` | Decoded data (bytes) |
+| `quality` | Quality metric |
+| `count` | Cache count |
+| `location` | List of location points |
+
+## See Also
+
+- [C API Reference](/api/image-scanner) - Core library documentation
+- [Perl Bindings](/bindings/perl) - Perl interface
+- [Java Bindings](/bindings/java) - Java interface
+- [Supported Symbologies](/concepts/barcode-types) - Barcode types

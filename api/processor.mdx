@@ -1,0 +1,424 @@
+---
+title: "Processor"
+description: "High-level self-contained image processor for video and image scanning"
+---
+
+## Overview
+
+The Processor (`zbar_processor_t`) provides a high-level, self-contained interface for processing video streams and images. It can optionally display results in a library-owned output window.
+
+## Data Type
+
+```c
+typedef struct zbar_processor_s zbar_processor_t;
+```
+
+Opaque standalone processor object.
+
+## Constructor and Destructor
+
+### zbar_processor_create()
+
+```c
+zbar_processor_t* zbar_processor_create(int threaded)
+```
+
+Creates a new processor instance.
+
+<ParamField path="threaded" type="int" required>
+  If non-zero and threading is available, spawns threads for improved responsiveness
+</ParamField>
+
+**Returns:** Pointer to new processor object
+
+### zbar_processor_destroy()
+
+```c
+void zbar_processor_destroy(zbar_processor_t *processor)
+```
+
+Destroys a processor and cleans up all associated resources.
+
+## Initialization
+
+### zbar_processor_init()
+
+```c
+int zbar_processor_init(
+    zbar_processor_t *processor,
+    const char *video_device,
+    int enable_display
+)
+```
+
+Opens a video input device and/or prepares to display output.
+
+<ParamField path="processor" type="zbar_processor_t*" required>
+  Processor instance
+</ParamField>
+
+<ParamField path="video_device" type="const char*">
+  Platform-specific video device name (e.g., "/dev/video0" on Linux). NULL for no video input.
+</ParamField>
+
+<ParamField path="enable_display" type="int" required>
+  Non-zero to enable display window
+</ParamField>
+
+**Returns:** `0` on success, `-1` on error
+
+### zbar_processor_request_size()
+
+```c
+int zbar_processor_request_size(
+    zbar_processor_t *processor,
+    unsigned width,
+    unsigned height
+)
+```
+
+Requests a preferred video image size. Must be called before `zbar_processor_init()`.
+
+<Note>
+The driver may adjust or ignore the request.
+</Note>
+
+**Since:** 0.6
+
+### zbar_processor_request_interface()
+
+```c
+int zbar_processor_request_interface(
+    zbar_processor_t *processor,
+    int version
+)
+```
+
+Requests a preferred video driver interface version (for debug/testing).
+
+**Since:** 0.6
+
+### zbar_processor_request_iomode()
+
+```c
+int zbar_processor_request_iomode(
+    zbar_processor_t *processor,
+    int iomode
+)
+```
+
+Requests a preferred video I/O mode:
+- `0` - Auto-detect
+- `1` - Force read()
+- `2` - Force mmap()
+- `3` - Force USERPTR (V4L2 only)
+
+**Since:** 0.7
+
+### zbar_processor_force_format()
+
+```c
+int zbar_processor_force_format(
+    zbar_processor_t *processor,
+    unsigned long input_format,
+    unsigned long output_format
+)
+```
+
+Forces specific input and output formats (for debug/testing).
+
+## Configuration
+
+### zbar_processor_set_config()
+
+```c
+int zbar_processor_set_config(
+    zbar_processor_t *processor,
+    zbar_symbol_type_t symbology,
+    zbar_config_t config,
+    int value
+)
+```
+
+Sets decoder configuration.
+
+**Since:** 0.4
+
+### zbar_processor_set_control()
+
+```c
+int zbar_processor_set_control(
+    zbar_processor_t *processor,
+    const char *control_name,
+    int value
+)
+```
+
+Sets video control value (brightness, contrast, etc.).
+
+**Since:** 0.20
+
+### zbar_processor_get_control()
+
+```c
+int zbar_processor_get_control(
+    zbar_processor_t *processor,
+    const char *control_name,
+    int *value
+)
+```
+
+Gets video control value.
+
+**Since:** 0.20
+
+## Display Control
+
+### zbar_processor_is_visible()
+
+```c
+int zbar_processor_is_visible(zbar_processor_t *processor)
+```
+
+**Returns:** `1` if window is displayed, `0` if not, `-1` on error
+
+### zbar_processor_set_visible()
+
+```c
+int zbar_processor_set_visible(
+    zbar_processor_t *processor,
+    int visible
+)
+```
+
+Shows or hides the display window.
+
+### zbar_processor_set_active()
+
+```c
+int zbar_processor_set_active(
+    zbar_processor_t *processor,
+    int active
+)
+```
+
+Controls the processor in free-running video mode. Only works if video input is initialized.
+
+## Processing
+
+### zbar_process_one()
+
+```c
+int zbar_process_one(
+    zbar_processor_t *processor,
+    int timeout
+)
+```
+
+Processes video frames until a result is available or timeout expires.
+
+<ParamField path="timeout" type="int" required>
+  Timeout in milliseconds. Use -1 to scan indefinitely.
+</ParamField>
+
+**Returns:**
+- `> 0` - Symbols successfully decoded
+- `0` - No symbols found (timeout expired)
+- `-1` - Error
+
+<Note>
+Multiple results may be returned despite the name.
+</Note>
+
+### zbar_process_image()
+
+```c
+int zbar_process_image(
+    zbar_processor_t *processor,
+    zbar_image_t *image
+)
+```
+
+Processes a provided image for barcodes.
+
+**Returns:**
+- `> 0` - Symbols decoded
+- `0` - No symbols
+- `-1` - Error
+
+## Results and Interaction
+
+### zbar_processor_get_results()
+
+```c
+const zbar_symbol_set_t* zbar_processor_get_results(
+    const zbar_processor_t *processor
+)
+```
+
+Retrieves decode results for the last scanned image/frame.
+
+<Note>
+The returned symbol set has its reference count incremented. Remember to decrement after use.
+</Note>
+
+**Since:** 0.10
+
+### zbar_processor_user_wait()
+
+```c
+int zbar_processor_user_wait(
+    zbar_processor_t *processor,
+    int timeout
+)
+```
+
+Waits for user input (mouse/keyboard) to the display window.
+
+**Returns:**
+- `> 0` - Input received
+- `0` - Timeout expired
+- `-1` - Error
+
+## Data Handler
+
+### zbar_processor_set_data_handler()
+
+```c
+zbar_image_data_handler_t* zbar_processor_set_data_handler(
+    zbar_processor_t *processor,
+    zbar_image_data_handler_t *handler,
+    const void *userdata
+)
+```
+
+Sets up a callback function for new results.
+
+**Returns:** Previously registered handler
+
+### zbar_processor_set_userdata()
+
+```c
+void zbar_processor_set_userdata(
+    zbar_processor_t *processor,
+    void *userdata
+)
+```
+
+Associates user data with the processor.
+
+**Since:** 0.6
+
+### zbar_processor_get_userdata()
+
+```c
+void* zbar_processor_get_userdata(
+    const zbar_processor_t *processor
+)
+```
+
+Retrieves user data.
+
+**Since:** 0.6
+
+## D-Bus
+
+### zbar_processor_request_dbus()
+
+```c
+int zbar_processor_request_dbus(
+    zbar_processor_t *proc,
+    int req_dbus_enabled
+)
+```
+
+Enables D-Bus IPC API.
+
+**Returns:** `0` on success
+
+## Error Handling
+
+### zbar_processor_error_spew()
+
+```c
+static inline int zbar_processor_error_spew(
+    const zbar_processor_t *processor,
+    int verbosity
+)
+```
+
+Displays error details to stderr.
+
+**Returns:** Non-zero value suitable for exit()
+
+### zbar_processor_error_string()
+
+```c
+static inline const char* zbar_processor_error_string(
+    const zbar_processor_t *processor,
+    int verbosity
+)
+```
+
+Retrieves error detail string.
+
+### zbar_processor_get_error_code()
+
+```c
+static inline zbar_error_t zbar_processor_get_error_code(
+    const zbar_processor_t *processor
+)
+```
+
+Retrieves error type code.
+
+## Usage Example
+
+```c processor.c
+#include <zbar.h>
+#include <stdio.h>
+
+int main() {
+    // Create processor with threading
+    zbar_processor_t *proc = zbar_processor_create(1);
+    
+    // Initialize with video device and display
+    if (zbar_processor_init(proc, "/dev/video0", 1) != 0) {
+        fprintf(stderr, "Failed to init processor\n");
+        return 1;
+    }
+    
+    // Configure to scan all symbologies
+    zbar_processor_set_config(proc, 0, ZBAR_CFG_ENABLE, 1);
+    
+    // Enable display
+    zbar_processor_set_visible(proc, 1);
+    
+    // Process video until a barcode is found
+    printf("Scanning... Press 'q' to quit\n");
+    int n = zbar_process_one(proc, -1);
+    
+    if (n > 0) {
+        const zbar_symbol_set_t *symbols = zbar_processor_get_results(proc);
+        const zbar_symbol_t *sym = zbar_symbol_set_first_symbol(symbols);
+        
+        for (; sym; sym = zbar_symbol_next(sym)) {
+            printf("Found %s: %s\n",
+                   zbar_get_symbol_name(zbar_symbol_get_type(sym)),
+                   zbar_symbol_get_data(sym));
+        }
+        
+        zbar_symbol_set_ref(symbols, -1);
+    }
+    
+    // Cleanup
+    zbar_processor_destroy(proc);
+    return 0;
+}
+```
+
+## See Also
+
+- [Image Scanner](/api/image-scanner) - Lower-level scanning interface
+- [Video API](/api/video) - Direct video device control
+- [Configuration](/advanced/configuration) - Configuration options

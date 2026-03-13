@@ -1,0 +1,534 @@
+---
+title: 'Processor'
+description: 'High-level self-contained image processor with video input and display output'
+---
+
+## Overview
+
+The `zbar::Processor` class provides a high-level, self-contained interface for processing video streams and images for barcodes. It manages video capture, barcode scanning, and optional display output in a single integrated component.
+
+**Header:** `<zbar.h>` (includes `zbar/Processor.h`)
+
+**Namespace:** `zbar`
+
+## Constants
+
+### FOREVER
+
+```cpp
+static const int FOREVER = -1;
+```
+
+Constant value to pass for timeout parameters to wait indefinitely.
+
+## Constructor
+
+### Processor()
+
+```cpp
+Processor(bool threaded = true, 
+          const char *video_device = "", 
+          bool enable_display = true)
+```
+
+Creates and initializes a new Processor.
+
+<ParamField path="threaded" type="bool" default="true">
+  If true, runs processing in a separate thread
+</ParamField>
+
+<ParamField path="video_device" type="const char*" default='""'>
+  Path to video device (e.g., "/dev/video0"). Empty string for no device.
+</ParamField>
+
+<ParamField path="enable_display" type="bool" default="true">
+  If true, enables the display window
+</ParamField>
+
+**Throws:** `std::bad_alloc` if memory allocation fails
+
+**Example:**
+```cpp
+// Create processor with video device
+Processor proc(true, "/dev/video0", true);
+
+// Create processor without initial device
+Processor proc(true);
+```
+
+## Destructor
+
+### ~Processor()
+
+```cpp
+~Processor()
+```
+
+Destroys the processor and releases all resources.
+
+## Initialization Methods
+
+### init()
+
+```cpp
+void init(const char *video_device = "", bool enable_display = true)
+```
+
+Opens a video input device and/or prepares the display output.
+
+<ParamField path="video_device" type="const char*" default='""'>
+  Path to video device. Empty string to skip video initialization.
+</ParamField>
+
+<ParamField path="enable_display" type="bool" default="true">
+  Whether to enable the display window
+</ParamField>
+
+**Throws:** Exception on initialization failure
+
+**Example:**
+```cpp
+Processor proc(false);  // Create without initialization
+proc.init("/dev/video0", true);  // Initialize later
+```
+
+## Configuration Methods
+
+### set_config() (integer)
+
+```cpp
+int set_config(zbar_symbol_type_t symbology, 
+               zbar_config_t config, 
+               int value)
+```
+
+Sets configuration for the underlying image scanner.
+
+<ParamField path="symbology" type="zbar_symbol_type_t" required>
+  The symbology type (use `ZBAR_NONE` for all symbologies)
+</ParamField>
+
+<ParamField path="config" type="zbar_config_t" required>
+  The configuration parameter (e.g., `ZBAR_CFG_ENABLE`, `ZBAR_CFG_MIN_LEN`)
+</ParamField>
+
+<ParamField path="value" type="int" required>
+  The value to set
+</ParamField>
+
+<ResponseField name="return" type="int">
+  0 on success, non-zero on error
+</ResponseField>
+
+**Since:** 0.4
+
+**Example:**
+```cpp
+// Enable all symbologies
+proc.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);
+
+// Set minimum QR code length
+proc.set_config(ZBAR_QRCODE, ZBAR_CFG_MIN_LEN, 10);
+```
+
+### set_config() (string)
+
+```cpp
+int set_config(std::string cfgstr)
+```
+
+Sets configuration from a configuration string.
+
+<ParamField path="cfgstr" type="std::string" required>
+  Configuration string (e.g., "qrcode.enable=1")
+</ParamField>
+
+<ResponseField name="return" type="int">
+  0 on success, non-zero on error
+</ResponseField>
+
+**Since:** 0.4
+
+## Display Methods
+
+### is_visible()
+
+```cpp
+bool is_visible()
+```
+
+Retrieves the current state of the display window.
+
+<ResponseField name="return" type="bool">
+  True if the window is currently visible, false otherwise
+</ResponseField>
+
+**Throws:** Exception on error
+
+### set_visible()
+
+```cpp
+void set_visible(bool visible = true)
+```
+
+Shows or hides the display window.
+
+<ParamField path="visible" type="bool" default="true">
+  True to show the window, false to hide it
+</ParamField>
+
+**Throws:** Exception on error
+
+**Example:**
+```cpp
+proc.set_visible(true);   // Show window
+proc.set_visible(false);  // Hide window
+```
+
+### set_active()
+
+```cpp
+void set_active(bool active = true)
+```
+
+Controls the processor in free-running video mode. When active, the processor continuously captures and processes video frames.
+
+<ParamField path="active" type="bool" default="true">
+  True to start processing, false to stop
+</ParamField>
+
+**Throws:** Exception on error
+
+**Example:**
+```cpp
+proc.set_active(true);   // Start video processing
+proc.set_active(false);  // Stop video processing
+```
+
+## Processing Methods
+
+### process_one()
+
+```cpp
+void process_one(int timeout = FOREVER)
+```
+
+Processes video frames until a barcode is decoded or timeout occurs.
+
+<ParamField path="timeout" type="int" default="FOREVER">
+  Timeout in milliseconds, or `FOREVER` (-1) to wait indefinitely
+</ParamField>
+
+**Throws:** Exception on error
+
+**Example:**
+```cpp
+// Wait indefinitely for a barcode
+proc.process_one();
+
+// Wait up to 5 seconds
+proc.process_one(5000);
+```
+
+### process_image()
+
+```cpp
+void process_image(Image &image)
+```
+
+Processes a single image for barcodes and optionally displays it.
+
+<ParamField path="image" type="Image&" required>
+  The image to process
+</ParamField>
+
+**Throws:** Exception on error
+
+**Example:**
+```cpp
+Image image(640, 480, "Y800", data, size);
+proc.process_image(image);
+```
+
+### operator&lt;&lt;()
+
+```cpp
+Processor& operator<<(Image &image)
+```
+
+Convenience operator for processing images.
+
+<ParamField path="image" type="Image&" required>
+  The image to process
+</ParamField>
+
+<ResponseField name="return" type="Processor&">
+  Reference to this processor for chaining
+</ResponseField>
+
+**Example:**
+```cpp
+proc << image;
+```
+
+## User Interaction
+
+### user_wait()
+
+```cpp
+int user_wait(int timeout = FOREVER)
+```
+
+Waits for user input to the display window (keyboard or mouse events).
+
+<ParamField path="timeout" type="int" default="FOREVER">
+  Timeout in milliseconds, or `FOREVER` (-1) to wait indefinitely
+</ParamField>
+
+<ResponseField name="return" type="int">
+  1 if input received, 0 on timeout, -1 on error
+</ResponseField>
+
+**Throws:** Exception on error
+
+**Example:**
+```cpp
+try {
+    proc.set_visible();
+    proc.set_active();
+    proc.user_wait();  // Wait for user to close window
+} catch (ClosedError &e) {
+    // Window was closed
+}
+```
+
+## Result Retrieval
+
+### get_results()
+
+```cpp
+const SymbolSet get_results() const
+```
+
+Retrieves decode results from the last processed image or video frame.
+
+<ResponseField name="return" type="SymbolSet">
+  Set of decoded symbols
+</ResponseField>
+
+**Since:** 0.10
+
+**Example:**
+```cpp
+proc.process_one();
+SymbolSet symbols = proc.get_results();
+for (auto it = symbols.symbol_begin(); it != symbols.symbol_end(); ++it) {
+    std::cout << it->get_data() << std::endl;
+}
+```
+
+## Handler Methods
+
+### set_handler()
+
+```cpp
+void set_handler(Image::Handler &handler)
+```
+
+Sets up a result handler callback that is invoked whenever barcodes are decoded.
+
+<ParamField path="handler" type="Image::Handler&" required>
+  Reference to handler object implementing `image_callback()`
+</ParamField>
+
+**Example:**
+```cpp
+class MyHandler : public Image::Handler {
+    void image_callback(Image &image) {
+        for (auto symbol = image.symbol_begin();
+             symbol != image.symbol_end(); ++symbol) {
+            std::cout << "Decoded: " << symbol->get_data() << std::endl;
+        }
+    }
+};
+
+MyHandler handler;
+proc.set_handler(handler);
+```
+
+## Video Configuration
+
+### request_size()
+
+```cpp
+void request_size(int width, int height)
+```
+
+Requests a preferred video image size from the device. Actual size may differ based on device capabilities.
+
+<ParamField path="width" type="int" required>
+  Desired image width in pixels
+</ParamField>
+
+<ParamField path="height" type="int" required>
+  Desired image height in pixels
+</ParamField>
+
+**Since:** 0.6
+
+### request_interface()
+
+```cpp
+void request_interface(int version)
+```
+
+Requests a preferred driver interface version for debug/testing.
+
+<ParamField path="version" type="int" required>
+  Interface version number
+</ParamField>
+
+**Since:** 0.6
+
+### request_iomode()
+
+```cpp
+void request_iomode(int iomode)
+```
+
+Requests a preferred I/O mode for debug/testing.
+
+<ParamField path="iomode" type="int" required>
+  I/O mode value
+</ParamField>
+
+**Throws:** Exception on error
+
+**Since:** 0.7
+
+## Format Control
+
+### force_format()
+
+```cpp
+void force_format(unsigned long input_format, unsigned long output_format)
+```
+
+Forces specific input and output formats for debug/testing.
+
+<ParamField path="input_format" type="unsigned long" required>
+  FourCC input format code
+</ParamField>
+
+<ParamField path="output_format" type="unsigned long" required>
+  FourCC output format code
+</ParamField>
+
+**Throws:** Exception on error
+
+### force_format() (string)
+
+```cpp
+void force_format(std::string &input_format, std::string &output_format)
+```
+
+Forces specific input and output formats using FourCC strings.
+
+<ParamField path="input_format" type="std::string&" required>
+  FourCC input format string (e.g., "YUYV")
+</ParamField>
+
+<ParamField path="output_format" type="std::string&" required>
+  FourCC output format string
+</ParamField>
+
+**Throws:** Exception on error
+
+## Type Conversion
+
+### operator zbar_processor_t*()
+
+```cpp
+operator zbar_processor_t*()
+```
+
+Casts to the underlying C processor object.
+
+<ResponseField name="return" type="zbar_processor_t*">
+  Pointer to the wrapped C processor object
+</ResponseField>
+
+## Complete Example
+
+```cpp
+#include <iostream>
+#include <zbar.h>
+
+using namespace std;
+using namespace zbar;
+
+// Custom handler for processing results
+class MyHandler : public Image::Handler {
+public:
+    void image_callback(Image &image) {
+        for (SymbolIterator symbol = image.symbol_begin();
+             symbol != image.symbol_end(); ++symbol) {
+            cout << "Decoded " << symbol->get_type_name() 
+                 << " symbol: " << symbol->get_data() << endl;
+        }
+    }
+};
+
+int main(int argc, char **argv) {
+    // Get video device from command line or use default
+    const char *device = (argc > 1) ? argv[1] : "/dev/video0";
+
+    try {
+        // Create and initialize processor
+        Processor proc(true, device, true);
+
+        // Configure barcode detection
+        proc.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);
+
+        // Set up result handler
+        MyHandler handler;
+        proc.set_handler(handler);
+
+        // Show preview window and start processing
+        proc.set_visible();
+        proc.set_active();
+
+        cout << "Press any key in the window to exit..." << endl;
+
+        // Wait for user input
+        proc.user_wait();
+
+    } catch (ClosedError &e) {
+        cout << "Window closed" << endl;
+    } catch (exception &e) {
+        cerr << "Error: " << e.what() << endl;
+        return 1;
+    }
+
+    return 0;
+}
+```
+
+## Threading Behavior
+
+When the Processor is created with `threaded = true`:
+- Video capture and processing run in a separate thread
+- The display window can be updated asynchronously
+- Result handlers are called from the processing thread
+- Thread-safe access to results is managed internally
+
+When `threaded = false`:
+- All operations run synchronously on the calling thread
+- Methods like `process_one()` block until completion
+- Simpler for single-threaded applications
+
+## Related Classes
+
+- [ImageScanner](/api/image-scanner) - Lower-level scanner for single images
+- [Video](/api/cpp/video) - Video capture abstraction
+- [Image](/api/image) - Image data container

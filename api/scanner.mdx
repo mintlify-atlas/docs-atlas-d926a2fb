@@ -1,0 +1,260 @@
+---
+title: "Scanner"
+description: "Low-level scan line decoder for processing intensity samples"
+---
+
+## Overview
+
+The Scanner (`zbar_scanner_t`) provides low-level scan line processing. It converts a linear stream of intensity samples into bar/space width measurements for the Decoder.
+
+## Data Type
+
+```c
+typedef struct zbar_scanner_s zbar_scanner_t;
+```
+
+Opaque scanner object.
+
+## Constructor and Destructor
+
+### zbar_scanner_create()
+
+```c
+zbar_scanner_t* zbar_scanner_create(zbar_decoder_t *decoder)
+```
+
+Creates a new scanner instance associated with a decoder.
+
+<ParamField path="decoder" type="zbar_decoder_t*" required>
+  Decoder instance to receive width measurements
+</ParamField>
+
+**Returns:** Pointer to new scanner object
+
+### zbar_scanner_destroy()
+
+```c
+void zbar_scanner_destroy(zbar_scanner_t *scanner)
+```
+
+Destroys a scanner and releases resources.
+
+## State Management
+
+### zbar_scanner_reset()
+
+```c
+void zbar_scanner_reset(zbar_scanner_t *scanner)
+```
+
+Clears all scanner state.
+
+### zbar_scanner_new_scan()
+
+```c
+zbar_symbol_type_t zbar_scanner_new_scan(zbar_scanner_t *scanner)
+```
+
+Marks the start of a new scan pass. Flushes any pending edges and resets scanner state.
+
+**Returns:** Symbol type if a symbol was pending, `ZBAR_NONE` otherwise
+
+## Scanning
+
+### zbar_scan_y()
+
+```c
+zbar_symbol_type_t zbar_scan_y(
+    zbar_scanner_t *scanner,
+    int y
+)
+```
+
+Processes the next intensity sample from the input stream.
+
+<ParamField path="scanner" type="zbar_scanner_t*" required>
+  Scanner instance
+</ParamField>
+
+<ParamField path="y" type="int" required>
+  Intensity sample value (typically 0-255 for grayscale)
+</ParamField>
+
+**Returns:**
+- Symbol type if edge detection completes a decode
+- `ZBAR_PARTIAL` as a hint
+- `ZBAR_NONE` if no symbol data available
+
+<Note>
+The scanner automatically detects edges (transitions between bars and spaces) and feeds width measurements to the associated decoder.
+</Note>
+
+## Edge Detection
+
+### zbar_scanner_get_width()
+
+```c
+unsigned zbar_scanner_get_width(const zbar_scanner_t *scanner)
+```
+
+Retrieves the width of the most recent bar or space.
+
+**Returns:** Width in sample units
+
+### zbar_scanner_get_edge()
+
+```c
+int zbar_scanner_get_edge(
+    const zbar_scanner_t *scanner,
+    unsigned offset,
+    int prec
+)
+```
+
+Retrieves the interpolated position of a specific edge.
+
+<ParamField path="offset" type="unsigned" required>
+  Edge offset (0 for most recent)
+</ParamField>
+
+<ParamField path="prec" type="int" required>
+  Sub-sample precision (fixed-point bits)
+</ParamField>
+
+**Returns:** Edge position with sub-sample precision
+
+### zbar_scanner_get_color()
+
+```c
+zbar_color_t zbar_scanner_get_color(const zbar_scanner_t *scanner)
+```
+
+Retrieves the color of the last scanned element.
+
+**Returns:** `ZBAR_SPACE` or `ZBAR_BAR`
+
+## Usage Example
+
+```c scanner_example.c
+#include <zbar.h>
+#include <stdio.h>
+
+int main() {
+    // Create decoder and scanner
+    zbar_decoder_t *decoder = zbar_decoder_create();
+    zbar_scanner_t *scanner = zbar_scanner_create(decoder);
+    
+    // Configure for Code 39
+    zbar_decoder_set_config(decoder, 0, ZBAR_CFG_ENABLE, 0);
+    zbar_decoder_set_config(decoder, ZBAR_CODE39, ZBAR_CFG_ENABLE, 1);
+    
+    // Example: scan a horizontal line from an image
+    unsigned char *image_data = load_image(); // Your image loading code
+    int width = 640;
+    int y_row = 240; // Middle row
+    
+    // Start new scan
+    zbar_scanner_new_scan(scanner);
+    
+    // Process pixels along scan line
+    for (int x = 0; x < width; x++) {
+        int intensity = image_data[y_row * width + x];
+        
+        zbar_symbol_type_t result = zbar_scan_y(scanner, intensity);
+        
+        if (result != ZBAR_NONE) {
+            // Symbol decoded
+            const char *data = zbar_decoder_get_data(decoder);
+            printf("Found %s: %s\n",
+                   zbar_get_symbol_name(result), data);
+        }
+    }
+    
+    // Cleanup
+    zbar_scanner_destroy(scanner);
+    zbar_decoder_destroy(decoder);
+    
+    return 0;
+}
+```
+
+## Multi-Line Scanning
+
+For robust detection, scan multiple lines:
+
+```c multi_line_scan.c
+#include <zbar.h>
+
+void scan_image(unsigned char *image, int width, int height) {
+    zbar_decoder_t *decoder = zbar_decoder_create();
+    zbar_scanner_t *scanner = zbar_scanner_create(decoder);
+    
+    // Scan every 4th horizontal line
+    for (int y = 0; y < height; y += 4) {
+        zbar_scanner_new_scan(scanner);
+        
+        for (int x = 0; x < width; x++) {
+            int intensity = image[y * width + x];
+            zbar_symbol_type_t sym = zbar_scan_y(scanner, intensity);
+            
+            if (sym != ZBAR_NONE) {
+                printf("Line %d: %s\n", y, 
+                       zbar_decoder_get_data(decoder));
+            }
+        }
+    }
+    
+    // Also scan vertical lines
+    for (int x = 0; x < width; x += 4) {
+        zbar_scanner_new_scan(scanner);
+        
+        for (int y = 0; y < height; y++) {
+            int intensity = image[y * width + x];
+            zbar_symbol_type_t sym = zbar_scan_y(scanner, intensity);
+            
+            if (sym != ZBAR_NONE) {
+                printf("Column %d: %s\n", x,
+                       zbar_decoder_get_data(decoder));
+            }
+        }
+    }
+    
+    zbar_scanner_destroy(scanner);
+    zbar_decoder_destroy(decoder);
+}
+```
+
+## Edge Detection Algorithm
+
+The scanner uses edge detection to identify transitions:
+
+1. **Filtering** - Applies digital filtering to smooth intensity values
+2. **Derivative** - Computes first derivative to find edges
+3. **Threshold** - Applies adaptive thresholding
+4. **Width Measurement** - Measures distance between edges
+5. **Width Stream** - Feeds widths to decoder
+
+<Tip>
+The scanner handles varying lighting conditions and image quality through adaptive algorithms.
+</Tip>
+
+## Precision and Accuracy
+
+The scanner supports sub-pixel edge detection:
+
+```c
+// Get edge position with 1/4 pixel precision
+int edge_pos = zbar_scanner_get_edge(scanner, 0, 2);
+float actual_pos = edge_pos / 4.0;
+```
+
+Higher precision improves:
+- Narrow bar detection
+- Low-resolution images
+- Dense barcode formats
+
+## See Also
+
+- [Decoder API](/api/decoder) - Processes width streams from Scanner
+- [Image Scanner](/api/image-scanner) - Higher-level image scanning
+- [Image Scanning Concepts](/concepts/image-scanning) - How scanning works

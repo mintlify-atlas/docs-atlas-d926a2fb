@@ -1,0 +1,334 @@
+---
+title: "Decoder"
+description: "Low-level bar width stream decoder for extracting barcode data"
+---
+
+## Overview
+
+The Decoder (`zbar_decoder_t`) provides low-level bar width stream decoding. It processes streams of bar and space widths and identifies barcode symbologies.
+
+## Data Type
+
+```c
+typedef struct zbar_decoder_s zbar_decoder_t;
+```
+
+Opaque decoder object.
+
+```c
+typedef void(zbar_decoder_handler_t)(zbar_decoder_t *decoder);
+```
+
+Decoder data handler callback function type.
+
+## Constructor and Destructor
+
+### zbar_decoder_create()
+
+```c
+zbar_decoder_t* zbar_decoder_create(void)
+```
+
+Creates a new decoder instance.
+
+**Returns:** Pointer to new decoder object
+
+### zbar_decoder_destroy()
+
+```c
+void zbar_decoder_destroy(zbar_decoder_t *decoder)
+```
+
+Destroys a decoder and releases resources.
+
+## Configuration
+
+### zbar_decoder_set_config()
+
+```c
+int zbar_decoder_set_config(
+    zbar_decoder_t *decoder,
+    zbar_symbol_type_t symbology,
+    zbar_config_t config,
+    int value
+)
+```
+
+Sets configuration for a specific symbology or all symbologies (use 0).
+
+**Returns:** `0` on success, non-zero on failure
+
+**Since:** 0.4
+
+### zbar_decoder_get_config()
+
+```c
+int zbar_decoder_get_config(
+    zbar_decoder_t *decoder,
+    zbar_symbol_type_t symbology,
+    zbar_config_t config,
+    int *value
+)
+```
+
+Retrieves configuration value.
+
+**Since:** 0.22
+
+### zbar_decoder_parse_config()
+
+```c
+static inline int zbar_decoder_parse_config(
+    zbar_decoder_t *decoder,
+    const char *config_string
+)
+```
+
+Parses and applies configuration string (e.g., "code128.enable=1").
+
+**Since:** 0.4
+
+### zbar_decoder_get_configs()
+
+```c
+unsigned int zbar_decoder_get_configs(
+    const zbar_decoder_t *decoder,
+    zbar_symbol_type_t symbology
+)
+```
+
+Retrieves bitmask of currently set configs for a symbology.
+
+**Since:** 0.11
+
+## State Management
+
+### zbar_decoder_reset()
+
+```c
+void zbar_decoder_reset(zbar_decoder_t *decoder)
+```
+
+Clears all decoder state. Any partial symbols are flushed.
+
+### zbar_decoder_new_scan()
+
+```c
+void zbar_decoder_new_scan(zbar_decoder_t *decoder)
+```
+
+Marks the start of a new scan pass. Clears intra-symbol state and resets color to ZBAR_SPACE. Partially decoded symbol state is retained.
+
+## Decoding
+
+### zbar_decode_width()
+
+```c
+zbar_symbol_type_t zbar_decode_width(
+    zbar_decoder_t *decoder,
+    unsigned width
+)
+```
+
+Processes the next bar/space width from the input stream.
+
+<ParamField path="decoder" type="zbar_decoder_t*" required>
+  Decoder instance
+</ParamField>
+
+<ParamField path="width" type="unsigned" required>
+  Width in arbitrary relative units. First value of a scan is ZBAR_SPACE width, alternating thereafter.
+</ParamField>
+
+**Returns:**
+- Symbol type if width completes a decode (data available)
+- `ZBAR_PARTIAL` as a hint if part of a symbol was decoded
+- `ZBAR_NONE` if no new symbol data is available
+
+### zbar_decoder_get_color()
+
+```c
+zbar_color_t zbar_decoder_get_color(
+    const zbar_decoder_t *decoder
+)
+```
+
+Retrieves the color of the NEXT element to be passed to zbar_decode_width().
+
+**Returns:** `ZBAR_SPACE` or `ZBAR_BAR`
+
+## Result Retrieval
+
+### zbar_decoder_get_data()
+
+```c
+const char* zbar_decoder_get_data(
+    const zbar_decoder_t *decoder
+)
+```
+
+Retrieves last decoded data.
+
+**Returns:** Data string or NULL if no new data available
+
+<Warning>
+The returned buffer is owned by the library. Contents are only valid between non-zero return from zbar_decode_width() and next library call.
+</Warning>
+
+### zbar_decoder_get_data_length()
+
+```c
+unsigned int zbar_decoder_get_data_length(
+    const zbar_decoder_t *decoder
+)
+```
+
+Retrieves length of binary data.
+
+**Returns:** Data length or 0 if no new data available
+
+### zbar_decoder_get_type()
+
+```c
+zbar_symbol_type_t zbar_decoder_get_type(
+    const zbar_decoder_t *decoder
+)
+```
+
+Retrieves last decoded symbol type.
+
+**Returns:** Symbol type or `ZBAR_NONE`
+
+### zbar_decoder_get_modifiers()
+
+```c
+unsigned int zbar_decoder_get_modifiers(
+    const zbar_decoder_t *decoder
+)
+```
+
+Retrieves modifier flags for last decoded symbol (e.g., GS1, AIM).
+
+**Since:** 0.11
+
+### zbar_decoder_get_direction()
+
+```c
+int zbar_decoder_get_direction(
+    const zbar_decoder_t *decoder
+)
+```
+
+Retrieves decode direction.
+
+**Returns:**
+- `1` for forward
+- `-1` for reverse
+- `0` if unknown or not applicable
+
+**Since:** 0.11
+
+## Data Handler
+
+### zbar_decoder_set_handler()
+
+```c
+zbar_decoder_handler_t* zbar_decoder_set_handler(
+    zbar_decoder_t *decoder,
+    zbar_decoder_handler_t *handler
+)
+```
+
+Sets up a callback function called just before zbar_decode_width() returns a non-zero value.
+
+<ParamField path="handler" type="zbar_decoder_handler_t*">
+  Callback function or NULL to disable
+</ParamField>
+
+**Returns:** Previously registered handler
+
+## Usage Example
+
+```c decoder_example.c
+#include <zbar.h>
+#include <stdio.h>
+
+void decoder_handler(zbar_decoder_t *decoder) {
+    zbar_symbol_type_t type = zbar_decoder_get_type(decoder);
+    const char *data = zbar_decoder_get_data(decoder);
+    printf("Decoded %s: %s\n", zbar_get_symbol_name(type), data);
+}
+
+int main() {
+    zbar_decoder_t *decoder = zbar_decoder_create();
+    
+    // Configure to scan Code 128 only
+    zbar_decoder_set_config(decoder, 0, ZBAR_CFG_ENABLE, 0);
+    zbar_decoder_set_config(decoder, ZBAR_CODE128, ZBAR_CFG_ENABLE, 1);
+    
+    // Set up handler
+    zbar_decoder_set_handler(decoder, decoder_handler);
+    
+    // Example width stream (would come from scanner)
+    unsigned widths[] = {10, 15, 10, 20, 15, 10, 10, 15, 20, 10};
+    
+    // Start new scan
+    zbar_decoder_new_scan(decoder);
+    
+    // Process widths
+    for (int i = 0; i < 10; i++) {
+        zbar_symbol_type_t result = zbar_decode_width(decoder, widths[i]);
+        
+        if (result != ZBAR_NONE) {
+            printf("Symbol completed!\n");
+        }
+    }
+    
+    // Cleanup
+    zbar_decoder_destroy(decoder);
+    return 0;
+}
+```
+
+## Working with Scanner
+
+The Decoder is typically used with the Scanner to process actual scan lines:
+
+```c scanner_decoder.c
+#include <zbar.h>
+
+zbar_scanner_t *scanner = zbar_scanner_create(decoder);
+zbar_decoder_t *decoder = zbar_decoder_create();
+
+// Configure decoder
+zbar_decoder_set_config(decoder, ZBAR_QRCODE, ZBAR_CFG_ENABLE, 1);
+
+// Process scan line
+zbar_scanner_new_scan(scanner);
+
+for (int i = 0; i < width; i++) {
+    zbar_color_t color = get_pixel_intensity(image, x, y + i);
+    zbar_symbol_type_t sym = zbar_scan_y(scanner, color);
+    
+    if (sym != ZBAR_NONE) {
+        // Symbol decoded
+        const char *data = zbar_decoder_get_data(decoder);
+        printf("Found: %s\n", data);
+    }
+}
+```
+
+## Color Alternation
+
+The decoder expects alternating bar/space widths:
+
+1. First width must be ZBAR_SPACE
+2. Each subsequent width alternates: SPACE → BAR → SPACE → BAR...
+3. Use `zbar_decoder_get_color()` to verify expected next color
+4. Call `zbar_decoder_new_scan()` to reset color to SPACE
+
+## See Also
+
+- [Scanner API](/api/scanner) - Works with Decoder to process scan lines
+- [Symbol API](/api/symbol) - Decoded symbol representation
+- [Configuration](/advanced/configuration) - Configuration options

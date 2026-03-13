@@ -1,0 +1,398 @@
+---
+title: "Installation"
+description: "Install ZBar barcode reader on Linux, macOS, and Windows"
+---
+
+This guide covers installing ZBar on various platforms, including package manager installations and building from source.
+
+## System Requirements
+
+### Core Library
+
+The scanner/decoder library requires minimal dependencies:
+- Standard C library functions
+- C compiler (GCC, Clang, or MSVC)
+
+### Optional Dependencies
+
+For additional functionality:
+
+- **ImageMagick** (≥6.2.6) or **GraphicsMagick**: For `zbarimg` to read various image formats
+- **Video4Linux**: For video device support (Linux 3.16+ recommended)
+- **pkg-config**: For locating installed libraries during build
+- **Qt4/Qt5**: For Qt widget integration
+- **GTK+ 2.x/3.x**: For GTK widget integration
+- **Python**: For Python bindings (2.7 or 3.x)
+- **Perl**: For Perl bindings (version 5)
+- **Java JDK**: For Java bindings (JDK 7+)
+
+## Linux Installation
+
+### Ubuntu/Debian
+
+<CodeGroup>
+```bash Binary Package
+# Install from apt repository
+sudo apt-get update
+sudo apt-get install libzbar0 libzbar-dev
+
+# Install command-line tools
+sudo apt-get install zbar-tools
+
+# Optional: Install GUI applications
+sudo apt-get install zbarcam-gtk zbarcam-qt
+```
+
+```bash Python Bindings
+# Install Python bindings
+sudo apt-get install python3-zbar
+
+# Or install via pip with system library
+sudo apt-get install libzbar0
+pip install pyzbar
+```
+</CodeGroup>
+
+### Fedora/RHEL/CentOS
+
+<CodeGroup>
+```bash DNF/YUM
+# Fedora
+sudo dnf install zbar zbar-devel
+
+# RHEL/CentOS (enable EPEL first)
+sudo yum install epel-release
+sudo yum install zbar zbar-devel
+```
+
+```bash Command-Line Tools
+# Install tools and GUI applications
+sudo dnf install zbar-tools zbarcam-gtk
+```
+</CodeGroup>
+
+### Arch Linux
+
+```bash
+sudo pacman -S zbar
+```
+
+## macOS Installation
+
+### Homebrew
+
+The easiest way to install ZBar on macOS:
+
+<CodeGroup>
+```bash Standard Installation
+# Install ZBar with Homebrew
+brew install zbar
+
+# Verify installation
+zbarimg --version
+```
+
+```bash With Python Bindings
+# Install ZBar
+brew install zbar
+
+# Install Python bindings
+pip3 install pyzbar
+```
+</CodeGroup>
+
+### MacPorts
+
+```bash
+sudo port install zbar
+```
+
+## Windows Installation
+
+### Pre-built Binaries
+
+Download pre-built binaries from the official releases:
+
+<Steps>
+  <Step title="Download Binaries">
+    Visit [linuxtv.org/downloads/zbar/binaries/](https://linuxtv.org/downloads/zbar/binaries/) and download the appropriate version:
+    - 32-bit or 64-bit
+    - Video for Windows (VfW) or DirectShow (DShow)
+  </Step>
+  <Step title="Extract Archive">
+    Extract the ZIP archive to a location like `C:\Program Files\ZBar`
+  </Step>
+  <Step title="Add to PATH">
+    Add the `bin` directory to your system PATH environment variable
+  </Step>
+  <Step title="Verify Installation">
+    Open Command Prompt and run:
+    ```cmd
+    zbarimg --version
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+  Choose the correct build variant (VfW vs DShow) based on your video capture requirements. DirectShow provides better compatibility with modern USB cameras.
+</Warning>
+
+## Building from Source
+
+### Prerequisites
+
+Install required build tools:
+
+<CodeGroup>
+```bash Debian/Ubuntu
+sudo apt-get install autoconf autopoint pkg-config libtool gcc make
+
+# Optional dependencies
+sudo apt-get install libmagickwand-dev  # ImageMagick
+sudo apt-get install libv4l-dev          # Video4Linux
+sudo apt-get install libgtk-3-dev        # GTK+3 widget
+sudo apt-get install qtbase5-dev         # Qt5 widget
+sudo apt-get install python3-dev         # Python bindings
+```
+
+```bash Fedora/RHEL
+sudo dnf install autoconf gettext-devel pkg-config libtool gcc make
+
+# Optional dependencies
+sudo dnf install ImageMagick-devel
+sudo dnf install libv4l-devel
+sudo dnf install gtk3-devel
+sudo dnf install qt5-qtbase-devel
+sudo dnf install python3-devel
+```
+
+```bash macOS
+# Install Xcode Command Line Tools
+xcode-select --install
+
+# Install dependencies via Homebrew
+brew install autoconf automake libtool pkg-config
+brew install imagemagick
+```
+</CodeGroup>
+
+### Basic Build
+
+Build ZBar with default options:
+
+<Steps>
+  <Step title="Clone or Download Source">
+    ```bash
+    # Clone from GitHub
+    git clone https://github.com/mchehab/zbar.git
+    cd zbar
+    
+    # Or download and extract tarball
+    wget https://linuxtv.org/downloads/zbar/zbar-0.23.tar.gz
+    tar -xzf zbar-0.23.tar.gz
+    cd zbar-0.23
+    ```
+  </Step>
+  <Step title="Generate Configure Script">
+    ```bash
+    autoreconf -vfi
+    ```
+    This creates the `configure` script from the autotools configuration.
+  </Step>
+  <Step title="Configure Build">
+    ```bash
+    ./configure
+    ```
+    The configure script will detect available dependencies and configure the build accordingly.
+  </Step>
+  <Step title="Compile">
+    ```bash
+    make
+    ```
+    Build time varies by system (typically 2-10 minutes).
+  </Step>
+  <Step title="Install">
+    ```bash
+    sudo make install
+    
+    # Update library cache (Linux)
+    sudo ldconfig
+    ```
+  </Step>
+</Steps>
+
+### Advanced Build Options
+
+#### Custom Installation Prefix
+
+```bash
+./configure --prefix=/usr/local
+make
+sudo make install
+```
+
+#### Select Python and GTK Versions
+
+```bash
+# Use Python 3 and GTK 3
+autoreconf -vfi
+./configure --with-gtk=auto --with-python=auto
+make
+```
+
+<Note>
+  By default, ZBar builds with Python 2 and GTK 2 for compatibility. Use `--with-gtk=auto` and `--with-python=auto` to automatically select the latest available versions.
+</Note>
+
+#### Disable Optional Features
+
+```bash
+# Build without video support
+./configure --without-video
+
+# Build without GUI widgets
+./configure --without-gtk --without-qt
+
+# Build without Python bindings
+./configure --without-python
+```
+
+#### Enable Additional Features
+
+```bash
+# Enable Java bindings
+./configure --with-java
+
+# Enable GObject Introspection (for GIR)
+./configure --enable-introspection
+```
+
+### Build Testing
+
+Run the test suite to verify your build:
+
+```bash
+make check
+```
+
+For GObject Introspection testing:
+
+```bash
+make check-gi
+```
+
+### Troubleshooting Build Issues
+
+<AccordionGroup>
+  <Accordion title="configure: command not found">
+    Run `autoreconf -vfi` first to generate the configure script.
+  </Accordion>
+  <Accordion title="Missing dependencies">
+    Install the development packages for missing libraries. The configure script will report what's missing.
+  </Accordion>
+  <Accordion title="ImageMagick not found">
+    Install `libmagickwand-dev` (Debian/Ubuntu) or `ImageMagick-devel` (Fedora/RHEL).
+  </Accordion>
+  <Accordion title="Python bindings fail to build">
+    Ensure Python development headers are installed (`python3-dev` or `python-dev`).
+  </Accordion>
+</AccordionGroup>
+
+## Verifying Installation
+
+### Check Installed Tools
+
+```bash
+# Check zbarimg (image scanning tool)
+zbarimg --version
+
+# Check zbarcam (video scanning tool)
+zbarcam --help
+```
+
+### Test with Sample Image
+
+```bash
+# Download a test barcode image
+wget https://github.com/mchehab/zbar/raw/master/examples/code-128.png
+
+# Scan the image
+zbarimg code-128.png
+```
+
+Expected output:
+```
+CODE-128:https://github.com/mchehab/zbar
+scanned 1 barcode symbols from 1 images in 0.01 seconds
+```
+
+### Verify Library Installation
+
+<CodeGroup>
+```bash Linux
+# Check if library is installed
+ldconfig -p | grep zbar
+
+# Check pkg-config
+pkg-config --modversion zbar
+```
+
+```bash macOS
+# Check library location
+otool -L $(which zbarimg)
+
+# Check Homebrew installation
+brew list zbar
+```
+</CodeGroup>
+
+### Test Language Bindings
+
+<CodeGroup>
+```python Python
+import zbar
+print(zbar.__version__)
+```
+
+```perl Perl
+use Barcode::ZBar;
+print $Barcode::ZBar::VERSION, "\n";
+```
+</CodeGroup>
+
+## Updating ZBar
+
+### Package Manager Update
+
+<CodeGroup>
+```bash Debian/Ubuntu
+sudo apt-get update
+sudo apt-get upgrade libzbar0 zbar-tools
+```
+
+```bash Fedora
+sudo dnf update zbar
+```
+
+```bash macOS
+brew update
+brew upgrade zbar
+```
+</CodeGroup>
+
+### Source Update
+
+```bash
+cd zbar
+git pull
+autoreconf -vfi
+./configure
+make
+sudo make install
+```
+
+## Next Steps
+
+<Card title="Quick Start Guide" icon="rocket" href="/quickstart">
+  Learn how to scan your first barcode with ZBar
+</Card>

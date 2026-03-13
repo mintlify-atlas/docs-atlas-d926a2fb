@@ -1,0 +1,674 @@
+---
+title: 'Perl Bindings'
+description: 'Barcode::ZBar - Perl interface to the ZBar Barcode Reader'
+---
+
+## Overview
+
+The `Barcode::ZBar` Perl module provides a complete interface for reading barcodes from images and video streams in Perl applications. The bindings support Perl 5.6 and above, offering a native Perl API to the ZBar library's barcode scanning capabilities.
+
+<Note>
+The Perl bindings provide both image scanning via `ImageScanner` and video scanning via `Processor`. You'll need Image::Magick or a similar library to load image files.
+</Note>
+
+## Installation
+
+<Steps>
+
+<Step title="Install from CPAN">
+Install the module from CPAN (if available):
+
+```bash
+cpan Barcode::ZBar
+```
+
+Or using cpanm:
+
+```bash
+cpanm Barcode::ZBar
+```
+</Step>
+
+<Step title="Install from source">
+Build and install from the ZBar source tree:
+
+```bash
+cd zbar/perl
+perl Makefile.PL
+make
+make test
+make install
+```
+</Step>
+
+<Step title="Install dependencies">
+Ensure the ZBar library is installed:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install libzbar0 libzbar-dev
+
+# macOS
+brew install zbar
+
+# Fedora/RHEL
+sudo dnf install zbar zbar-devel
+```
+</Step>
+
+</Steps>
+
+## Basic Usage
+
+Import the module in your Perl script:
+
+```perl
+use Barcode::ZBar;
+
+# Create a scanner
+my $scanner = Barcode::ZBar::ImageScanner->new();
+
+# Configure it
+$scanner->parse_config("enable");
+
+# Scan an image
+my $n = $scanner->scan_image($image);
+```
+
+## Core Classes
+
+### Barcode::ZBar::ImageScanner
+
+The `ImageScanner` class scans images for barcodes and returns decoded symbols.
+
+```perl
+# Create an ImageScanner
+my $scanner = Barcode::ZBar::ImageScanner->new();
+
+# Configure the scanner
+$scanner->parse_config("enable");  # Enable all symbologies
+$scanner->parse_config("qrcode.enable");  # Enable QR codes only
+
+# Scan an image
+my $n = $scanner->scan_image($image);
+print "Found $n symbols\n";
+
+# Get results
+foreach my $symbol ($image->get_symbols()) {
+    print "Type: " . $symbol->get_type() . "\n";
+    print "Data: " . $symbol->get_data() . "\n";
+}
+```
+
+### Barcode::ZBar::Image
+
+The `Image` class wraps image data along with format and size metadata.
+
+```perl
+# Create a new image
+my $image = Barcode::ZBar::Image->new();
+
+# Set image properties
+$image->set_format('Y800');
+$image->set_size($width, $height);
+$image->set_data($raw_data);
+
+# Get image properties
+my $width = $image->get_width();
+my $height = $image->get_height();
+my $format = $image->get_format();
+
+# Get decoded symbols
+my @symbols = $image->get_symbols();
+```
+
+### Barcode::ZBar::Processor
+
+The `Processor` class provides high-level video scanning with preview window and callback support.
+
+```perl
+# Create a Processor
+my $proc = Barcode::ZBar::Processor->new();
+
+# Initialize with video device
+$proc->init('/dev/video0');
+
+# Configure decoder
+$proc->parse_config("enable");
+
+# Set up callback
+sub my_handler {
+    my ($proc, $image, $closure) = @_;
+    
+    foreach my $symbol ($proc->get_results()) {
+        print 'decoded ' . $symbol->get_type() . 
+              ' symbol "' . $symbol->get_data() . "\"\n";
+    }
+}
+$proc->set_data_handler(\&my_handler);
+
+# Enable preview
+$proc->set_visible();
+
+# Start scanning
+$proc->set_active();
+
+# Wait for user input
+$proc->user_wait();
+```
+
+### Barcode::ZBar::Symbol
+
+The `Symbol` class represents a decoded barcode with type, data, and location information.
+
+```perl
+my $type = $symbol->get_type();      # Symbol type string
+my $data = $symbol->get_data();      # Decoded data
+my $quality = $symbol->get_quality();  # Quality metric
+my $count = $symbol->get_count();    # Cache count
+
+# Get location points
+my @location = $symbol->get_location();
+```
+
+## Configuration
+
+Configure scanner behavior using `parse_config()`:
+
+```perl
+# Enable all symbologies
+$scanner->parse_config("enable");
+
+# Enable specific symbology
+$scanner->parse_config("qrcode.enable");
+$scanner->parse_config("ean13.enable");
+
+# Disable a symbology
+$scanner->parse_config("code39.disable");
+
+# Set minimum/maximum data length
+$scanner->parse_config("code128.min-length=6");
+$scanner->parse_config("code128.max-length=20");
+
+# Adjust scanner density
+$scanner->parse_config("x-density=2");
+$scanner->parse_config("y-density=2");
+```
+
+## Complete Examples
+
+### Scanning an Image File
+
+This example shows how to scan a barcode from an image file using Image::Magick:
+
+<CodeGroup>
+
+```perl scan_image.pl
+#!/usr/bin/perl
+use warnings;
+use strict;
+require Image::Magick;
+require Barcode::ZBar;
+
+$ARGV[0] || die "Usage: $0 <image_file>\n";
+
+# Create a reader
+my $scanner = Barcode::ZBar::ImageScanner->new();
+
+# Configure the reader
+$scanner->parse_config("enable");
+
+# Obtain image data
+my $magick = Image::Magick->new();
+$magick->Read($ARGV[0]) && die "Failed to read image\n";
+my $raw = $magick->ImageToBlob(magick => 'GRAY', depth => 8);
+
+# Wrap image data
+my $image = Barcode::ZBar::Image->new();
+$image->set_format('Y800');
+$image->set_size($magick->Get(qw(columns rows)));
+$image->set_data($raw);
+
+# Scan the image for barcodes
+my $n = $scanner->scan_image($image);
+
+# Extract results
+foreach my $symbol ($image->get_symbols()) {
+    # Do something useful with results
+    print('decoded ' . $symbol->get_type() .
+          ' symbol "' . $symbol->get_data() . "\"\n");
+}
+
+# Clean up
+undef($image);
+```
+
+```perl Modern Perl
+#!/usr/bin/env perl
+use v5.10;
+use warnings;
+use strict;
+use Image::Magick;
+use Barcode::ZBar;
+
+sub scan_image {
+    my ($filename) = @_;
+    
+    # Create scanner
+    my $scanner = Barcode::ZBar::ImageScanner->new();
+    $scanner->parse_config("enable");
+    
+    # Load image
+    my $magick = Image::Magick->new();
+    my $status = $magick->Read($filename);
+    die "Error reading $filename: $status" if $status;
+    
+    # Convert to grayscale
+    my $raw = $magick->ImageToBlob(magick => 'GRAY', depth => 8);
+    my ($width, $height) = $magick->Get(qw(columns rows));
+    
+    # Create ZBar image
+    my $image = Barcode::ZBar::Image->new();
+    $image->set_format('Y800');
+    $image->set_size($width, $height);
+    $image->set_data($raw);
+    
+    # Scan
+    my $n = $scanner->scan_image($image);
+    
+    # Collect results
+    my @results;
+    foreach my $symbol ($image->get_symbols()) {
+        push @results, {
+            type => $symbol->get_type(),
+            data => $symbol->get_data(),
+            quality => $symbol->get_quality()
+        };
+    }
+    
+    return @results;
+}
+
+# Usage
+die "Usage: $0 <image_file>\n" unless @ARGV;
+
+my @results = scan_image($ARGV[0]);
+foreach my $r (@results) {
+    say "Found $r->{type}: $r->{data}";
+}
+```
+
+</CodeGroup>
+
+### Video Scanning with Processor
+
+Scan barcodes from a video device with automatic processing:
+
+```perl processor.pl
+#!/usr/bin/env perl
+use warnings;
+use strict;
+require Barcode::ZBar;
+
+# Create a Processor
+my $proc = Barcode::ZBar::Processor->new();
+
+# Configure the Processor
+$proc->parse_config("enable");
+
+# Initialize the Processor
+$proc->init($ARGV[0] || '/dev/video0');
+
+# Setup a callback
+sub my_handler {
+    my ($proc, $image, $closure) = @_;
+
+    # Extract results
+    foreach my $symbol ($proc->get_results()) {
+        # Do something useful with results
+        print('decoded ' . $symbol->get_type() .
+              ' symbol "' . $symbol->get_data() . "\"\n");
+    }
+}
+$proc->set_data_handler(\&my_handler);
+
+# Enable the preview window
+$proc->set_visible();
+
+# Initiate scanning
+$proc->set_active();
+
+# Keep scanning until user provides key/mouse input
+$proc->user_wait();
+```
+
+### Single Barcode from Video
+
+Process exactly one barcode from a video device:
+
+```perl read_one.pl
+#!/usr/bin/env perl
+use warnings;
+use strict;
+use Barcode::ZBar;
+
+# Create a Processor
+my $proc = Barcode::ZBar::Processor->new();
+
+# Configure the Processor
+$proc->parse_config("enable");
+
+# Initialize with video device
+my $device = $ARGV[0] || '/dev/video0';
+$proc->init($device);
+
+# Enable preview window
+$proc->set_visible();
+
+# Process one barcode
+$proc->process_one();
+
+# Hide preview
+$proc->set_visible(0);
+
+# Extract results
+foreach my $symbol ($proc->get_results()) {
+    print('decoded ' . $symbol->get_type() .
+          ' symbol "' . $symbol->get_data() . "\"\n");
+}
+```
+
+## Working with Image::Magick
+
+The Perl bindings integrate well with Image::Magick for image loading:
+
+```perl
+use Image::Magick;
+use Barcode::ZBar;
+
+sub scan_magick_image {
+    my ($magick_img) = @_;
+    
+    # Create scanner
+    my $scanner = Barcode::ZBar::ImageScanner->new();
+    $scanner->parse_config("enable");
+    
+    # Convert to grayscale blob
+    my $raw = $magick_img->ImageToBlob(magick => 'GRAY', depth => 8);
+    my ($width, $height) = $magick_img->Get(qw(columns rows));
+    
+    # Create ZBar image
+    my $image = Barcode::ZBar::Image->new();
+    $image->set_format('Y800');
+    $image->set_size($width, $height);
+    $image->set_data($raw);
+    
+    # Scan and return symbols
+    $scanner->scan_image($image);
+    return $image->get_symbols();
+}
+
+# Usage
+my $img = Image::Magick->new();
+$img->Read('barcode.png');
+my @symbols = scan_magick_image($img);
+```
+
+## Image Format Support
+
+The Perl bindings support various image formats:
+
+- `Y800` / `GRAY` - 8-bit grayscale (recommended)
+- `YUV` - YUV color space
+- `RGB3` / `BGR3` - 24-bit RGB
+- `RGB4` / `BGR4` - 32-bit RGB with alpha
+- `422P` - YUV 4:2:2 planar
+- `420P` - YUV 4:2:0 planar
+
+<Note>
+For best performance and compatibility, use grayscale (`Y800`) format.
+</Note>
+
+## Module Functions
+
+The `Barcode::ZBar` module exports several utility functions:
+
+```perl
+use Barcode::ZBar qw(version increase_verbosity set_verbosity);
+
+# Get library version
+my $ver = Barcode::ZBar::version();
+print "ZBar version: $ver\n";
+
+# Increase debug verbosity
+Barcode::ZBar::increase_verbosity();
+
+# Set specific verbosity level
+Barcode::ZBar::set_verbosity(10);
+
+# Parse configuration string
+my @config = Barcode::ZBar::parse_config("qrcode.enable");
+# Returns: (symbology, config_type, value)
+```
+
+## Constants
+
+### Configuration Constants
+
+```perl
+use Barcode::ZBar;
+
+# Decoder configuration
+Barcode::ZBar::Config::ENABLE
+Barcode::ZBar::Config::ADD_CHECK
+Barcode::ZBar::Config::EMIT_CHECK
+Barcode::ZBar::Config::ASCII
+Barcode::ZBar::Config::MIN_LEN
+Barcode::ZBar::Config::MAX_LEN
+Barcode::ZBar::Config::POSITION
+Barcode::ZBar::Config::X_DENSITY
+Barcode::ZBar::Config::Y_DENSITY
+```
+
+### Modifier Constants
+
+```perl
+# Symbology modifiers
+Barcode::ZBar::Modifier::GS1
+Barcode::ZBar::Modifier::AIM
+```
+
+### Orientation Constants
+
+```perl
+# Symbol orientation
+Barcode::ZBar::Orient::UNKNOWN
+Barcode::ZBar::Orient::UP
+Barcode::ZBar::Orient::RIGHT
+Barcode::ZBar::Orient::DOWN
+Barcode::ZBar::Orient::LEFT
+```
+
+### Width Stream Constants
+
+```perl
+# For use with Scanner/Decoder
+Barcode::ZBar::SPACE  # Light area between bars
+Barcode::ZBar::BAR    # Dark bar segment
+```
+
+## Error Handling
+
+The Perl bindings use `Barcode::ZBar::Error` objects for error handling:
+
+```perl
+use Barcode::ZBar;
+
+eval {
+    my $proc = Barcode::ZBar::Processor->new();
+    $proc->init('/invalid/device');
+};
+if ($@) {
+    my $error = $@;
+    print "Error: $error\n";  # Error objects stringify
+}
+```
+
+## Performance Tips
+
+<Steps>
+
+<Step title="Convert to grayscale">
+Always convert images to grayscale before scanning:
+
+```perl
+my $raw = $magick->ImageToBlob(magick => 'GRAY', depth => 8);
+```
+</Step>
+
+<Step title="Adjust scan density">
+Reduce scan density for faster processing:
+
+```perl
+$scanner->parse_config("x-density=2");
+$scanner->parse_config("y-density=2");
+```
+</Step>
+
+<Step title="Enable only needed symbologies">
+Only enable the barcode types you actually need:
+
+```perl
+$scanner->parse_config("code128.enable");
+$scanner->parse_config("qrcode.enable");
+# Disable others
+$scanner->parse_config("ean13.disable");
+```
+</Step>
+
+<Step title="Reuse scanner instances">
+Create scanner instances once and reuse them:
+
+```perl
+# Good - reuse scanner
+my $scanner = Barcode::ZBar::ImageScanner->new();
+$scanner->parse_config("enable");
+foreach my $file (@files) {
+    # ... scan multiple images with same scanner
+}
+```
+</Step>
+
+</Steps>
+
+## Advanced Usage
+
+### Processing Multiple Images
+
+Efficiently process multiple images with one scanner:
+
+```perl
+my $scanner = Barcode::ZBar::ImageScanner->new();
+$scanner->parse_config("enable");
+
+foreach my $filename (@image_files) {
+    my $magick = Image::Magick->new();
+    $magick->Read($filename);
+    
+    my $raw = $magick->ImageToBlob(magick => 'GRAY', depth => 8);
+    my ($w, $h) = $magick->Get(qw(columns rows));
+    
+    my $image = Barcode::ZBar::Image->new();
+    $image->set_format('Y800');
+    $image->set_size($w, $h);
+    $image->set_data($raw);
+    
+    my $n = $scanner->scan_image($image);
+    print "Found $n symbols in $filename\n";
+    
+    foreach my $sym ($image->get_symbols()) {
+        print "  " . $sym->get_type() . ": " . $sym->get_data() . "\n";
+    }
+}
+```
+
+### Custom Video Callback with State
+
+Use closures to maintain state in video callbacks:
+
+```perl
+my $count = 0;
+my %seen;
+
+sub counting_handler {
+    my ($proc, $image, $closure) = @_;
+    
+    foreach my $symbol ($proc->get_results()) {
+        my $data = $symbol->get_data();
+        unless ($seen{$data}) {
+            $count++;
+            $seen{$data} = 1;
+            print "New barcode #$count: $data\n";
+        }
+    }
+}
+
+$proc->set_data_handler(\&counting_handler);
+```
+
+## API Reference
+
+### ImageScanner Methods
+
+| Method | Description |
+|--------|-------------|
+| `new()` | Create a new ImageScanner instance |
+| `parse_config($config)` | Parse and apply configuration string |
+| `set_config($sym, $cfg, $val)` | Set specific configuration option |
+| `scan_image($image)` | Scan image and return number of symbols |
+
+### Image Methods
+
+| Method | Description |
+|--------|-------------|
+| `new()` | Create a new Image instance |
+| `set_format($format)` | Set image format (e.g., 'Y800') |
+| `get_format()` | Get current image format |
+| `set_size($width, $height)` | Set image dimensions |
+| `get_width()` | Get image width |
+| `get_height()` | Get image height |
+| `set_data($data)` | Set raw image data |
+| `get_data()` | Get raw image data |
+| `get_symbols()` | Get list of decoded symbols |
+
+### Processor Methods
+
+| Method | Description |
+|--------|-------------|
+| `new()` | Create a new Processor instance |
+| `init($device)` | Initialize with video device |
+| `parse_config($config)` | Configure decoder |
+| `set_data_handler($coderef)` | Set callback for decoded symbols |
+| `set_visible($bool)` | Show/hide preview window |
+| `set_active($bool)` | Enable/disable scanning |
+| `process_one()` | Process one frame and wait |
+| `process_image($image)` | Process a specific image |
+| `user_wait()` | Wait for user input (blocks) |
+| `get_results()` | Get symbols from last scan |
+
+### Symbol Methods
+
+| Method | Description |
+|--------|-------------|
+| `get_type()` | Get symbol type string |
+| `get_data()` | Get decoded data |
+| `get_quality()` | Get quality metric |
+| `get_count()` | Get cache count |
+| `get_location()` | Get location points |
+
+## See Also
+
+- [C API Reference](/api/image-scanner) - Core library documentation
+- [Python Bindings](/bindings/python) - Python interface
+- [Java Bindings](/bindings/java) - Java interface
+- [Supported Symbologies](/concepts/barcode-types) - Barcode types

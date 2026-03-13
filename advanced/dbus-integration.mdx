@@ -1,0 +1,591 @@
+---
+title: D-Bus Integration
+description: Enable inter-process communication with ZBar using D-Bus for event notifications
+---
+
+## Overview
+
+ZBar supports D-Bus integration for sending decoded barcode data to other applications via inter-process communication (IPC). When enabled, ZBar automatically broadcasts barcode scan results over the system D-Bus, allowing other applications to receive and process scan events without direct integration with ZBar.
+
+<Note>
+  D-Bus integration is optional and must be explicitly enabled at runtime. It is available since ZBar version 0.21.
+</Note>
+
+## What is D-Bus?
+
+D-Bus is a message bus system that provides a simple way for applications to communicate with each other. It consists of:
+
+- **System bus** - System-wide bus for system services
+- **Session bus** - Per-user-session bus for user applications
+
+ZBar uses the **system bus** to broadcast barcode scan events.
+
+## Enabling D-Bus Support
+
+### In zbarcam/zbarimg
+
+The command-line tools support D-Bus by default. Use `--nodbus` to disable:
+
+```bash
+# D-Bus enabled (default)
+zbarcam /dev/video0
+
+# D-Bus disabled
+zbarcam --nodbus /dev/video0
+
+# With zbarimg
+zbarimg code.png        # D-Bus enabled
+zbarimg --nodbus code.png  # D-Bus disabled
+```
+
+### Using the Processor API
+
+For applications using `zbar_processor_t`:
+
+```c
+zbar_processor_t *processor = zbar_processor_create(1);
+
+// Enable D-Bus notifications
+zbar_processor_request_dbus(processor, 1);
+
+// Disable D-Bus notifications
+zbar_processor_request_dbus(processor, 0);
+
+// Initialize and use processor
+zbar_processor_init(processor, "/dev/video0", 1);
+zbar_processor_set_active(processor, 1);
+```
+
+Implementation reference: `zbar/processor.c:717-722`
+
+### Using the Image Scanner API
+
+For applications using `zbar_image_scanner_t`:
+
+```c
+zbar_image_scanner_t *scanner = zbar_image_scanner_create();
+
+// Enable D-Bus notifications
+zbar_image_scanner_request_dbus(scanner, 1);
+
+// Configure and use scanner
+zbar_image_scanner_set_config(scanner, ZBAR_QRCODE, ZBAR_CFG_ENABLE, 1);
+
+zbar_image_t *image = /* ... load image ... */;
+int n = zbar_scan_image(scanner, image);
+// Decoded results are automatically sent via D-Bus
+```
+
+Implementation reference: `zbar/img_scanner.c:1160-1165`
+
+## D-Bus Interface Specification
+
+### Service and Interface
+
+- **Service Name**: `org.linuxtv.Zbar`
+- **Interface**: `org.linuxtv.Zbar1.Code`
+- **Object Path**: `/org/linuxtv/Zbar1/Code`
+- **Signal**: `Code`
+
+### Signal Format
+
+When a barcode is decoded, ZBar emits a `Code` signal with the following structure:
+
+```
+Signal: org.linuxtv.Zbar1.Code.Code
+  Arguments: ARRAY of DICT_ENTRY<STRING, VARIANT>
+    "Type": STRING - Barcode type name (e.g., "QR-Code", "CODE-128")
+    "Data": STRING - Decoded text data (UTF-8 string)
+    "BinaryData": ARRAY of BYTE - Raw binary data
+```
+
+### Example Signal
+
+```
+signal time=1234567.890123 sender=:1.123 -> destination=(null destination)
+   path=/org/linuxtv/Zbar1/Code; interface=org.linuxtv.Zbar1.Code; member=Code
+   array [
+      dict entry {
+         string "Type"
+         variant             string "QR-Code"
+      }
+      dict entry {
+         string "Data"
+         variant             string "https://example.com"
+      }
+      dict entry {
+         string "BinaryData"
+         variant             array of bytes [
+            68 74 74 70 115 58 47 47 101 120 97 109 112 108 101 46 99 111 109
+         ]
+      }
+   ]
+```
+
+## Implementation Details
+
+### Message Structure
+
+The D-Bus message is built in `zbar_send_dbus()` (source: `zbar/img_scanner.c:748-835`):
+
+```c
+// Create signal message
+msg = dbus_message_new_signal(
+    "/org/linuxtv/Zbar1/Code",      // Object path
+    "org.linuxtv.Zbar1.Code",       // Interface
+    "Code"                          // Signal name
+);
+
+// Append arguments as array of dict entries
+DBusMessageIter args, dict;
+dbus_message_iter_init_append(msg, &args);
+dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY, "{sv}", &dict);
+
+// Add Type field
+append_dict_entry(&dict, "Type", zbar_get_symbol_name(type));
+
+// Add Data field (text)
+append_dict_entry(&dict, "Data", data_string);
+
+// Add BinaryData field (raw bytes)
+append_dict_entry_binary(&dict, "BinaryData", data, length);
+
+dbus_message_iter_close_container(&args, &dict);
+
+// Send message
+dbus_connection_send(conn, msg, &serial);
+dbus_connection_flush(conn);
+```
+
+### Bus Configuration
+
+The D-Bus policy configuration is in `dbus/org.linuxtv.Zbar.conf`:
+
+```xml
+<!DOCTYPE busconfig PUBLIC
+ "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+    <policy context="default">
+        <allow own="org.linuxtv.Zbar"/>
+        <allow send_destination="org.linuxtv.Zbar"/>
+        <allow send_destination="org.linuxtv.Zbar"
+               send_interface="org.linuxtv.Zbar1.Code"/>
+        <allow send_destination="org.linuxtv.Zbar"
+               send_interface="org.freedesktop.DBus.Properties"/>
+        <allow send_destination="org.linuxtv.Zbar"
+               send_interface="org.freedesktop.DBus.Introspectable"/>
+    </policy>
+</busconfig>
+```
+
+This file should be installed to `/etc/dbus-1/system.d/` or `/usr/share/dbus-1/system.d/`.
+
+## Receiving D-Bus Messages
+
+### Using dbus-monitor
+
+Monitor ZBar events from the command line:
+
+```bash
+# Monitor all ZBar D-Bus signals
+dbus-monitor --system "interface='org.linuxtv.Zbar1.Code'"
+
+# More specific monitoring
+dbus-monitor --system "type='signal',interface='org.linuxtv.Zbar1.Code',member='Code'"
+```
+
+Example output:
+```
+signal time=1234567.890 sender=:1.45 -> destination=(null destination)
+   path=/org/linuxtv/Zbar1/Code; interface=org.linuxtv.Zbar1.Code; member=Code
+   array [
+      dict entry(
+         string "Type"
+         variant string "CODE-128"
+      )
+      dict entry(
+         string "Data"
+         variant string "https://github.com/mchehab/zbar"
+      )
+   ]
+```
+
+### Python Client
+
+```python
+import dbus
+import dbus.mainloop.glib
+from gi.repository import GLib
+
+def barcode_handler(properties):
+    """Handle incoming barcode signals."""
+    barcode_type = properties.get('Type', 'Unknown')
+    barcode_data = properties.get('Data', '')
+    binary_data = properties.get('BinaryData', [])
+    
+    print(f"Type: {barcode_type}")
+    print(f"Data: {barcode_data}")
+    print(f"Binary Length: {len(binary_data)}")
+
+def signal_handler(*args, **kwargs):
+    """D-Bus signal handler."""
+    if args:
+        barcode_handler(args[0])
+
+# Set up D-Bus main loop
+dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+
+# Connect to system bus
+bus = dbus.SystemBus()
+
+# Add signal receiver
+bus.add_signal_receiver(
+    signal_handler,
+    dbus_interface='org.linuxtv.Zbar1.Code',
+    signal_name='Code'
+)
+
+print("Listening for barcodes...")
+
+# Run main loop
+loop = GLib.MainLoop()
+try:
+    loop.run()
+except KeyboardInterrupt:
+    print("\nExiting...")
+    loop.quit()
+```
+
+### C Client
+
+The test program `test/test_dbus.c` provides a complete C example:
+
+```c
+#include <dbus/dbus.h>
+#include <stdio.h>
+#include <stdbool.h>
+
+#define ZBAR_INTERFACE "org.linuxtv.Zbar1.Code"
+#define ZBAR_SIGNAL_CODE "Code"
+
+int main(int argc, char *argv[])
+{
+    DBusConnection *conn;
+    DBusError err;
+    DBusMessage *msg;
+    DBusMessageIter args, entry, dict, val;
+    char *property;
+    
+    // Initialize D-Bus error
+    dbus_error_init(&err);
+    
+    // Connect to system bus
+    conn = dbus_bus_get(DBUS_BUS_SYSTEM, &err);
+    if (dbus_error_is_set(&err)) {
+        fprintf(stderr, "Connection Error: %s\n", err.message);
+        dbus_error_free(&err);
+        return 1;
+    }
+    
+    // Add match rule for ZBar signals
+    dbus_bus_add_match(
+        conn,
+        "type='signal',interface='" ZBAR_INTERFACE "'",
+        &err
+    );
+    dbus_connection_flush(conn);
+    
+    if (dbus_error_is_set(&err)) {
+        fprintf(stderr, "Match Error: %s\n", err.message);
+        dbus_error_free(&err);
+        return 1;
+    }
+    
+    printf("Waiting for ZBar events...\n");
+    
+    // Main loop
+    while (true) {
+        // Read next message (blocking)
+        dbus_connection_read_write(conn, 0);
+        msg = dbus_connection_pop_message(conn);
+        
+        if (!msg) {
+            sleep(1);
+            continue;
+        }
+        
+        // Check if it's a Code signal
+        if (dbus_message_is_signal(msg, ZBAR_INTERFACE, ZBAR_SIGNAL_CODE)) {
+            // Parse message arguments
+            if (!dbus_message_iter_init(msg, &args)) {
+                fprintf(stderr, "Message has no arguments\n");
+            } else {
+                // Iterate through array of dict entries
+                dbus_message_iter_recurse(&args, &entry);
+                while (dbus_message_iter_get_arg_type(&entry) == DBUS_TYPE_DICT_ENTRY) {
+                    dbus_message_iter_recurse(&entry, &dict);
+                    
+                    // Get key (string)
+                    dbus_message_iter_get_basic(&dict, &property);
+                    dbus_message_iter_next(&dict);
+                    
+                    // Get value (variant)
+                    dbus_message_iter_recurse(&dict, &val);
+                    
+                    if (strcmp(property, "Type") == 0) {
+                        char *type;
+                        dbus_message_iter_get_basic(&val, &type);
+                        printf("Type: %s\n", type);
+                    } else if (strcmp(property, "Data") == 0) {
+                        char *data;
+                        dbus_message_iter_get_basic(&val, &data);
+                        printf("Data: %s\n", data);
+                    }
+                    
+                    dbus_message_iter_next(&entry);
+                }
+            }
+        }
+        
+        dbus_message_unref(msg);
+    }
+    
+    return 0;
+}
+```
+
+## Testing D-Bus Integration
+
+### Quick Test
+
+From the README (source: `README.md:207-232`):
+
+```bash
+# Terminal 1: Monitor D-Bus
+dbus-monitor --system interface=org.linuxtv.Zbar1.Code
+
+# Terminal 2: Scan a barcode
+zbarimg examples/code-128.png
+```
+
+Expected output in Terminal 1:
+```
+signal time=... sender=:1.123 -> destination=(null)
+   array [
+      dict entry {
+         string "Type"
+         variant string "CODE-128"
+      }
+      dict entry {
+         string "Data"
+         variant string "https://github.com/mchehab/zbar"
+      }
+   ]
+```
+
+### Using test_dbus Program
+
+```bash
+# Build test program
+make test_progs
+
+# Run test listener
+./test/test_dbus
+
+# In another terminal, scan a barcode
+./zbarimg/zbarimg examples/code-128.png
+```
+
+Expected output:
+```
+Waiting for Zbar events
+Type = CODE-128
+Value = https://github.com/mchehab/zbar
+```
+
+### Test with Options
+
+```bash
+# Stop after receiving 5 codes
+./test/test_dbus --count 5
+
+# Stop after 30 seconds
+./test/test_dbus --time 30
+
+# Log output to file
+./test/test_dbus --log output.txt
+
+# Log binary data to file
+./test/test_dbus --bin-log binary.dat
+```
+
+## Use Cases
+
+### System-wide Barcode Scanner
+
+Run ZBar as a system service that broadcasts all scans:
+
+```bash
+# Start scanner in background
+zbarcam /dev/video0 &
+
+# Multiple applications can now receive scan events
+python barcode_logger.py &
+python inventory_app.py &
+```
+
+### Desktop Integration
+
+Integrate barcode scanning into desktop environments:
+
+```python
+# GNOME Shell extension or KDE Plasmoid
+import dbus
+
+bus = dbus.SystemBus()
+bus.add_signal_receiver(
+    on_barcode_scanned,
+    dbus_interface='org.linuxtv.Zbar1.Code',
+    signal_name='Code'
+)
+
+def on_barcode_scanned(properties):
+    # Show notification
+    show_notification(
+        "Barcode Scanned",
+        properties.get('Data', '')
+    )
+```
+
+### Web Application Bridge
+
+Bridge ZBar scans to web applications:
+
+```python
+import dbus
+import requests
+
+def forward_to_webapp(properties):
+    """Forward scan to web application."""
+    requests.post('http://localhost:3000/api/scan', json={
+        'type': properties.get('Type'),
+        'data': properties.get('Data'),
+        'timestamp': time.time()
+    })
+
+bus = dbus.SystemBus()
+bus.add_signal_receiver(
+    forward_to_webapp,
+    dbus_interface='org.linuxtv.Zbar1.Code',
+    signal_name='Code'
+)
+```
+
+### IoT Device Integration
+
+```python
+import dbus
+import paho.mqtt.client as mqtt
+
+mqtt_client = mqtt.Client()
+mqtt_client.connect("mqtt.example.com", 1883)
+
+def publish_to_mqtt(properties):
+    """Publish scan to MQTT broker."""
+    mqtt_client.publish(
+        "devices/scanner/scans",
+        json.dumps({
+            'type': properties.get('Type'),
+            'data': properties.get('Data')
+        })
+    )
+
+bus = dbus.SystemBus()
+bus.add_signal_receiver(
+    publish_to_mqtt,
+    dbus_interface='org.linuxtv.Zbar1.Code',
+    signal_name='Code'
+)
+```
+
+## Troubleshooting
+
+### Permission Denied
+
+If you get permission errors:
+
+```bash
+# Check D-Bus policy is installed
+ls /etc/dbus-1/system.d/org.linuxtv.Zbar.conf
+ls /usr/share/dbus-1/system.d/org.linuxtv.Zbar.conf
+
+# Reload D-Bus configuration
+sudo systemctl reload dbus
+```
+
+### No Messages Received
+
+<Accordion title="Check D-Bus is enabled">
+  Verify ZBar was started with D-Bus enabled:
+  
+  ```bash
+  # Should NOT have --nodbus flag
+  ps aux | grep zbar
+  ```
+</Accordion>
+
+<Accordion title="Verify system bus connection">
+  ```bash
+  # Check D-Bus is running
+  systemctl status dbus
+  
+  # Test bus connection
+  dbus-send --system --print-reply \
+    --dest=org.freedesktop.DBus \
+    /org/freedesktop/DBus \
+    org.freedesktop.DBus.ListNames
+  ```
+</Accordion>
+
+<Accordion title="Check message bus logs">
+  ```bash
+  # System logs
+  journalctl -u dbus -n 50
+  
+  # Or
+  tail -f /var/log/syslog | grep -i dbus
+  ```
+</Accordion>
+
+### Compilation Issues
+
+```bash
+# Install D-Bus development packages
+# Debian/Ubuntu:
+sudo apt-get install libdbus-1-dev
+
+# Fedora/RHEL:
+sudo dnf install dbus-devel
+
+# Verify D-Bus is enabled in build
+./configure --with-dbus=yes
+make
+```
+
+## Security Considerations
+
+1. **System Bus Access**: D-Bus system bus requires proper permissions
+2. **Data Privacy**: Barcode data is broadcast to all listeners on the system
+3. **Policy Configuration**: Restrict access via D-Bus policy if needed
+4. **Binary Data**: Handle binary data carefully to avoid buffer overflows
+
+<Warning>
+  D-Bus broadcasts are system-wide. Any application with appropriate permissions can receive barcode data. Consider security implications for sensitive data.
+</Warning>
+
+## Related Topics
+
+- [Configuration System](/advanced/configuration) - Configure ZBar behavior
+- [API Reference](/api/processor) - Processor API documentation
+- [Command Line Tools](/cli/zbarcam) - zbarcam and zbarimg usage

@@ -1,97 +1,187 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "ZBar Barcode Reader"
+description: "Open source software suite for reading barcodes and QR codes from various sources"
 ---
 
-## Setting up
+<div style={{
+  background: 'linear-gradient(135deg, #dc0a7d 0%, #0d8381 100%)',
+  padding: '4rem 2rem',
+  borderRadius: '0px',
+  marginBottom: '3rem',
+  color: '#ffffff'
+}}>
+  <h1 style={{
+    fontSize: '48px',
+    fontWeight: '700',
+    fontFamily: 'Orbitron, sans-serif',
+    marginBottom: '1rem',
+    color: '#ffffff'
+  }}>ZBar Barcode Reader</h1>
+  <p style={{
+    fontSize: '20px',
+    fontFamily: 'Arial, sans-serif',
+    marginBottom: '2rem',
+    color: '#ffffff'
+  }}>
+    Decode barcodes and QR codes from images, webcams, and video streams with a powerful open source library
+  </p>
+  <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+    <a href="/installation" style={{
+      background: '#f9f5d7',
+      color: '#000000',
+      padding: '0.75rem 1.5rem',
+      borderRadius: '0px',
+      textDecoration: 'none',
+      fontWeight: '700',
+      fontFamily: 'Arial, sans-serif'
+    }}>Get Started</a>
+    <a href="https://github.com/mchehab/zbar" style={{
+      background: 'transparent',
+      color: '#ffffff',
+      padding: '0.75rem 1.5rem',
+      border: '2px solid #ffffff',
+      borderRadius: '0px',
+      textDecoration: 'none',
+      fontWeight: '700',
+      fontFamily: 'Arial, sans-serif'
+    }}>View on GitHub</a>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+## Features
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Multi-Format Support" icon="barcode">
+    Decode EAN-13, UPC-A, Code 128, Code 39, QR Code, and many more barcode formats
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Video4Linux2 Integration" icon="video">
+    Direct webcam integration using V4L2 for real-time barcode scanning
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Cross-Platform" icon="globe">
+    Works on Linux, Windows, and macOS with comprehensive platform support
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Multiple Language Bindings" icon="code">
+    Native bindings for C, C++, Python, Perl, and Java
   </Card>
-</Columns>
+  <Card title="GUI Widgets" icon="window">
+    Ready-to-use Qt and GTK widgets for easy UI integration
+  </Card>
+  <Card title="Command-Line Tools" icon="terminal">
+    Powerful CLI tools for batch processing and automation
+  </Card>
+</CardGroup>
 
-## Create beautiful pages
+## Quick Start
 
-Everything you need to create world-class documentation.
+Get up and running with ZBar in minutes:
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+<Steps>
+  <Step title="Install ZBar">
+    Install the library and development headers on your system
+    
+    <CodeGroup>
+    ```bash Ubuntu/Debian
+    sudo apt-get install libzbar0 libzbar-dev
+    ```
+    
+    ```bash Fedora/RHEL
+    sudo dnf install zbar zbar-devel
+    ```
+    
+    ```bash macOS
+    brew install zbar
+    ```
+    
+    ```bash From Source
+    autoreconf -vfi
+    ./configure
+    make
+    sudo make install
+    ```
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Scan Your First Barcode">
+    Use the command-line tool to decode a barcode image
+    
+    ```bash
+    zbarimg barcode.png
+    ```
+  </Step>
+  
+  <Step title="Integrate into Your Application">
+    Add barcode scanning to your application using the API
+    
+    <CodeGroup>
+    ```c C API
+    #include <zbar.h>
+    
+    zbar_image_scanner_t *scanner = zbar_image_scanner_create();
+    zbar_image_t *image = zbar_image_create();
+    
+    // Configure and scan...
+    int n = zbar_scan_image(scanner, image);
+    ```
+    
+    ```python Python
+    import zbar
+    
+    scanner = zbar.ImageScanner()
+    scanner.parse_config('enable')
+    
+    # Scan image...
+    ```
+    </CodeGroup>
+  </Step>
+</Steps>
 
-## Need inspiration?
+## Supported Barcode Types
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+ZBar supports a wide range of 1D and 2D barcode symbologies:
+
+<AccordionGroup>
+  <Accordion title="1D Barcodes">
+    - **EAN-13/UPC-A** - Standard retail product barcodes
+    - **UPC-E** - Compressed version of UPC-A
+    - **EAN-8** - Short version of EAN-13
+    - **Code 128** - High-density alphanumeric barcodes
+    - **Code 93** - Compact alphanumeric symbology
+    - **Code 39** - Widely used alphanumeric format
+    - **Codabar** - Numeric with special characters
+    - **Interleaved 2 of 5** - Numeric-only format
+    - **GS1 DataBar** - Retail point-of-sale applications
+  </Accordion>
+  
+  <Accordion title="2D Barcodes">
+    - **QR Code** - Popular 2D matrix barcode
+    - **SQ Code** - Specialized 2D symbology
+  </Accordion>
+</AccordionGroup>
+
+## Explore the Documentation
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts" icon="book" href="/concepts/barcode-types">
+    Learn about barcode types, image scanning, and video capture
+  </Card>
+  <Card title="CLI Tools" icon="terminal" href="/cli/zbarcam">
+    Master the zbarcam and zbarimg command-line utilities
+  </Card>
+  <Card title="Language Bindings" icon="code" href="/bindings/python">
+    Use ZBar in Python, Perl, or Java applications
+  </Card>
+  <Card title="API Reference" icon="book-open" href="/api/image-scanner">
+    Complete C and C++ API documentation
+  </Card>
+</CardGroup>
+
+## Community & Support
+
+<CardGroup cols={2}>
+  <Card title="GitHub Repository" icon="github" href="https://github.com/mchehab/zbar">
+    View source code, report issues, and contribute
+  </Card>
+  <Card title="Download Binaries" icon="download" href="https://linuxtv.org/downloads/zbar/binaries/">
+    Pre-built binaries for Ubuntu, Windows, and macOS
+  </Card>
+</CardGroup>

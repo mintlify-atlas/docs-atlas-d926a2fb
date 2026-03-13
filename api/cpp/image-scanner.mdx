@@ -1,0 +1,330 @@
+---
+title: 'ImageScanner'
+description: 'Mid-level image scanner interface for reading barcodes from 2D images'
+---
+
+## Overview
+
+The `zbar::ImageScanner` class provides a mid-level interface for scanning and decoding barcodes from 2D images. It reads barcodes from a `zbar::Image` and returns decoded `Symbol` results.
+
+**Header:** `<zbar.h>` (includes `zbar/ImageScanner.h`)
+
+**Namespace:** `zbar`
+
+## Constructor
+
+### ImageScanner()
+
+```cpp
+ImageScanner(zbar_image_scanner_t *scanner = NULL)
+```
+
+Creates a new ImageScanner instance.
+
+<ParamField path="scanner" type="zbar_image_scanner_t*" default="NULL">
+  Optional C scanner object to wrap. If NULL, creates a new scanner.
+</ParamField>
+
+## Destructor
+
+### ~ImageScanner()
+
+```cpp
+~ImageScanner()
+```
+
+Destroys the scanner and releases all associated resources.
+
+## Core Methods
+
+### scan()
+
+```cpp
+int scan(Image &image)
+```
+
+Scans the provided image for barcodes.
+
+<ParamField path="image" type="Image&" required>
+  The image to scan for barcodes
+</ParamField>
+
+<ResponseField name="return" type="int">
+  The number of symbols detected, or -1 if an error occurred
+</ResponseField>
+
+**Example:**
+```cpp
+ImageScanner scanner;
+Image image(640, 480, "Y800", data, width * height);
+int n = scanner.scan(image);
+```
+
+### operator&lt;&lt;()
+
+```cpp
+ImageScanner& operator<<(Image &image)
+```
+
+Convenience operator for scanning images.
+
+<ParamField path="image" type="Image&" required>
+  The image to scan
+</ParamField>
+
+<ResponseField name="return" type="ImageScanner&">
+  Reference to this scanner for chaining
+</ResponseField>
+
+**Example:**
+```cpp
+scanner << image;
+```
+
+## Configuration Methods
+
+### set_config() (integer)
+
+```cpp
+int set_config(zbar_symbol_type_t symbology, 
+               zbar_config_t config, 
+               int value)
+```
+
+Sets configuration for a specific symbology or all symbologies.
+
+<ParamField path="symbology" type="zbar_symbol_type_t" required>
+  The symbology type (use `ZBAR_NONE` for all symbologies)
+</ParamField>
+
+<ParamField path="config" type="zbar_config_t" required>
+  The configuration parameter to set (e.g., `ZBAR_CFG_ENABLE`, `ZBAR_CFG_MIN_LEN`)
+</ParamField>
+
+<ParamField path="value" type="int" required>
+  The value to set for the configuration parameter
+</ParamField>
+
+<ResponseField name="return" type="int">
+  0 on success, non-zero on error
+</ResponseField>
+
+**Example:**
+```cpp
+// Enable all symbologies
+scanner.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);
+
+// Enable only QR codes
+scanner.set_config(ZBAR_QRCODE, ZBAR_CFG_ENABLE, 1);
+```
+
+### get_config()
+
+```cpp
+int get_config(zbar_symbol_type_t symbology, 
+               zbar_config_t config, 
+               int &value)
+```
+
+Retrieves the current configuration value for a specific symbology.
+
+<ParamField path="symbology" type="zbar_symbol_type_t" required>
+  The symbology type to query
+</ParamField>
+
+<ParamField path="config" type="zbar_config_t" required>
+  The configuration parameter to retrieve
+</ParamField>
+
+<ParamField path="value" type="int&" required>
+  Reference to store the retrieved value
+</ParamField>
+
+<ResponseField name="return" type="int">
+  0 on success, non-zero on error
+</ResponseField>
+
+**Since:** 0.22
+
+### set_config() (string)
+
+```cpp
+int set_config(std::string cfgstr)
+```
+
+Sets configuration from a configuration string.
+
+<ParamField path="cfgstr" type="std::string" required>
+  Configuration string (e.g., "qrcode.enable=1")
+</ParamField>
+
+<ResponseField name="return" type="int">
+  0 on success, non-zero on error
+</ResponseField>
+
+**Since:** 0.4
+
+## Cache and Result Methods
+
+### enable_cache()
+
+```cpp
+void enable_cache(bool enable = true)
+```
+
+Enables or disables the inter-image result cache. The cache filters duplicate results between frames.
+
+<ParamField path="enable" type="bool" default="true">
+  True to enable caching, false to disable
+</ParamField>
+
+### recycle_image()
+
+```cpp
+void recycle_image(Image &image)
+```
+
+Removes previous scan results from the scanner and image, preparing for reuse.
+
+<ParamField path="image" type="Image&" required>
+  The image to recycle
+</ParamField>
+
+**Since:** 0.10
+
+### get_results()
+
+```cpp
+const SymbolSet get_results() const
+```
+
+Retrieves the decode results from the last scanned image.
+
+<ResponseField name="return" type="SymbolSet">
+  Set of decoded symbols from the last scan
+</ResponseField>
+
+**Since:** 0.10
+
+## Handler Methods
+
+### set_handler()
+
+```cpp
+void set_handler(Image::Handler &handler)
+```
+
+Sets up a result handler callback to be invoked when barcodes are decoded.
+
+<ParamField path="handler" type="Image::Handler&" required>
+  Reference to a handler object that implements `image_callback()`
+</ParamField>
+
+**Example:**
+```cpp
+class MyHandler : public Image::Handler {
+    void image_callback(Image &image) {
+        for (auto symbol = image.symbol_begin(); 
+             symbol != image.symbol_end(); ++symbol) {
+            std::cout << symbol->get_data() << std::endl;
+        }
+    }
+};
+
+MyHandler handler;
+scanner.set_handler(handler);
+```
+
+## D-Bus Integration
+
+### request_dbus()
+
+```cpp
+int request_dbus(bool enabled)
+```
+
+Requests sending decoded barcode data via D-Bus.
+
+<ParamField path="enabled" type="bool" required>
+  True to enable D-Bus broadcasting, false to disable
+</ParamField>
+
+<ResponseField name="return" type="int">
+  0 on success, non-zero on error
+</ResponseField>
+
+**Since:** 0.21
+
+## Type Conversion
+
+### operator zbar_image_scanner_t*()
+
+```cpp
+operator zbar_image_scanner_t*() const
+```
+
+Casts to the underlying C scanner object for interoperability with C API.
+
+<ResponseField name="return" type="zbar_image_scanner_t*">
+  Pointer to the wrapped C scanner object
+</ResponseField>
+
+## Complete Example
+
+```cpp
+#include <iostream>
+#include <zbar.h>
+#include <Magick++.h>
+
+using namespace std;
+using namespace zbar;
+
+int main(int argc, char **argv) {
+    if (argc < 2) {
+        cerr << "Usage: " << argv[0] << " <image-file>" << endl;
+        return 1;
+    }
+
+    // Create and configure scanner
+    ImageScanner scanner;
+    scanner.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);
+
+    // Load image
+    Magick::Image magick(argv[1]);
+    int width = magick.columns();
+    int height = magick.rows();
+
+    // Convert to grayscale
+    Magick::Blob blob;
+    magick.modifyImage();
+    magick.write(&blob, "GRAY", 8);
+    const void *raw = blob.data();
+
+    // Create ZBar image
+    Image image(width, height, "Y800", raw, width * height);
+
+    // Scan for barcodes
+    int n = scanner.scan(image);
+    cout << "Found " << n << " barcode(s)" << endl;
+
+    // Extract results
+    for (Image::SymbolIterator symbol = image.symbol_begin();
+         symbol != image.symbol_end(); ++symbol) {
+        cout << "Type: " << symbol->get_type_name() << endl;
+        cout << "Data: " << symbol->get_data() << endl;
+        cout << "Quality: " << symbol->get_quality() << endl;
+    }
+
+    // Clean up
+    image.set_data(NULL, 0);
+
+    return 0;
+}
+```
+
+## Related Classes
+
+- [Image](/api/image) - Image data container
+- [Symbol](/api/symbol) - Decoded barcode symbol
+- [SymbolSet](/api/symbol) - Container for decoded symbols
+- [Processor](/api/cpp/processor) - High-level processor with video and display

@@ -1,0 +1,525 @@
+---
+title: "Image"
+description: "Image data container with format and size metadata"
+---
+
+## Overview
+
+The Image (`zbar_image_t`) stores image sample data along with associated format and size metadata. It's the primary container for passing images to ZBar for scanning.
+
+## Data Type
+
+```c
+typedef struct zbar_image_s zbar_image_t;
+```
+
+Opaque image object.
+
+```c
+typedef void(zbar_image_cleanup_handler_t)(zbar_image_t *image);
+typedef void(zbar_image_data_handler_t)(zbar_image_t *image, const void *userdata);
+```
+
+Callback function types for cleanup and data handlers.
+
+## Constructor and Destructor
+
+### zbar_image_create()
+
+```c
+zbar_image_t* zbar_image_create(void)
+```
+
+Creates a new image object with uninitialized data and format.
+
+**Returns:** Pointer to new image object
+
+<Note>
+Destroy the image using zbar_image_destroy() when finished.
+</Note>
+
+### zbar_image_destroy()
+
+```c
+void zbar_image_destroy(zbar_image_t *image)
+```
+
+Destroys an image. Invokes the data cleanup handler if available.
+
+<Warning>
+Make no assumptions about when the image or data buffer are actually destroyed. The library may retain them if still in use. Use cleanup handler to track data buffers.
+</Warning>
+
+### zbar_image_ref()
+
+```c
+void zbar_image_ref(
+    zbar_image_t *image,
+    int refs
+)
+```
+
+Manipulates image reference count.
+
+<ParamField path="refs" type="int" required>
+  Reference count change (+1 to increment, -1 to decrement)
+</ParamField>
+
+<Note>
+zbar_image_ref(image, -1) is equivalent to zbar_image_destroy(image)
+</Note>
+
+**Since:** 0.5
+
+## Format and Size
+
+### zbar_image_get_format()
+
+```c
+unsigned long zbar_image_get_format(
+    const zbar_image_t *image
+)
+```
+
+Retrieves the image format fourcc code.
+
+**Returns:** FourCC format code
+
+### zbar_image_set_format()
+
+```c
+void zbar_image_set_format(
+    zbar_image_t *image,
+    unsigned long format
+)
+```
+
+Specifies the image format fourcc code.
+
+<ParamField path="format" type="unsigned long" required>
+  FourCC format (e.g., zbar_fourcc('Y','8','0','0'))
+</ParamField>
+
+<Warning>
+This does NOT convert the data. Use zbar_image_convert() for format conversion.
+</Warning>
+
+### zbar_image_get_width()
+
+```c
+unsigned zbar_image_get_width(
+    const zbar_image_t *image
+)
+```
+
+Retrieves image width in sample columns.
+
+### zbar_image_get_height()
+
+```c
+unsigned zbar_image_get_height(
+    const zbar_image_t *image
+)
+```
+
+Retrieves image height in sample rows.
+
+### zbar_image_get_size()
+
+```c
+void zbar_image_get_size(
+    const zbar_image_t *image,
+    unsigned *width,
+    unsigned *height
+)
+```
+
+Retrieves both dimensions.
+
+### zbar_image_set_size()
+
+```c
+void zbar_image_set_size(
+    zbar_image_t *image,
+    unsigned width,
+    unsigned height
+)
+```
+
+Specifies pixel size of the image.
+
+<Note>
+This resets the crop rectangle to the full image (0, 0, width, height) and does not affect existing data.
+</Note>
+
+## Crop Rectangle
+
+### zbar_image_get_crop()
+
+```c
+void zbar_image_get_crop(
+    const zbar_image_t *image,
+    unsigned *x,
+    unsigned *y,
+    unsigned *width,
+    unsigned *height
+)
+```
+
+Retrieves the crop rectangle coordinates and size. Defaults to full image.
+
+**Since:** 0.11
+
+### zbar_image_set_crop()
+
+```c
+void zbar_image_set_crop(
+    zbar_image_t *image,
+    unsigned x,
+    unsigned y,
+    unsigned width,
+    unsigned height
+)
+```
+
+Specifies a rectangular region to scan. Rectangle is clipped to image boundaries.
+
+## Sequence Number
+
+### zbar_image_get_sequence()
+
+```c
+unsigned zbar_image_get_sequence(
+    const zbar_image_t *image
+)
+```
+
+Retrieves a sequence (page/frame) number.
+
+**Since:** 0.6
+
+### zbar_image_set_sequence()
+
+```c
+void zbar_image_set_sequence(
+    zbar_image_t *image,
+    unsigned sequence_num
+)
+```
+
+Associates a sequence number with the image.
+
+**Since:** 0.6
+
+## Data Management
+
+### zbar_image_get_data()
+
+```c
+const void* zbar_image_get_data(
+    const zbar_image_t *image
+)
+```
+
+Retrieves image sample data pointer.
+
+<Warning>
+The buffer is only valid until zbar_image_destroy() is called.
+</Warning>
+
+### zbar_image_get_data_length()
+
+```c
+unsigned long zbar_image_get_data_length(
+    const zbar_image_t *image
+)
+```
+
+Retrieves size of image data in bytes.
+
+**Since:** 0.6
+
+### zbar_image_set_data()
+
+```c
+void zbar_image_set_data(
+    zbar_image_t *image,
+    const void *data,
+    unsigned long data_byte_length,
+    zbar_image_cleanup_handler_t *cleanup_hndlr
+)
+```
+
+Specifies image sample data.
+
+<ParamField path="data" type="const void*" required>
+  Pointer to image data buffer
+</ParamField>
+
+<ParamField path="data_byte_length" type="unsigned long" required>
+  Size of data in bytes
+</ParamField>
+
+<ParamField path="cleanup_hndlr" type="zbar_image_cleanup_handler_t*">
+  Function called when data is no longer needed (or NULL)
+</ParamField>
+
+<Note>
+Application data will not be modified by the library.
+</Note>
+
+### zbar_image_free_data()
+
+```c
+void zbar_image_free_data(zbar_image_t *image)
+```
+
+Built-in cleanup handler that passes the data buffer to free().
+
+## User Data
+
+### zbar_image_get_userdata()
+
+```c
+void* zbar_image_get_userdata(
+    const zbar_image_t *image
+)
+```
+
+Retrieves user data associated with the image.
+
+**Since:** 0.5
+
+### zbar_image_set_userdata()
+
+```c
+void zbar_image_set_userdata(
+    zbar_image_t *image,
+    void *userdata
+)
+```
+
+Associates user data with the image.
+
+**Since:** 0.5
+
+## Format Conversion
+
+### zbar_image_convert()
+
+```c
+zbar_image_t* zbar_image_convert(
+    const zbar_image_t *image,
+    unsigned long format
+)
+```
+
+Converts image sample data to the requested format.
+
+**Returns:** New image with converted data. Original image is unaffected.
+
+<Note>
+Converted image size may be rounded up due to format constraints.
+</Note>
+
+### zbar_image_convert_resize()
+
+```c
+zbar_image_t* zbar_image_convert_resize(
+    const zbar_image_t *image,
+    unsigned long format,
+    unsigned width,
+    unsigned height
+)
+```
+
+Converts format with crop/pad to specified size.
+
+<ParamField path="width" type="unsigned" required>
+  Target width
+</ParamField>
+
+<ParamField path="height" type="unsigned" required>
+  Target height
+</ParamField>
+
+<Note>
+If requested size is larger, last row/column are duplicated. If smaller, extra rows/columns are dropped. Image is NOT scaled.
+</Note>
+
+**Since:** 0.4
+
+## Symbol Association
+
+### zbar_image_get_symbols()
+
+```c
+const zbar_symbol_set_t* zbar_image_get_symbols(
+    const zbar_image_t *image
+)
+```
+
+Retrieves decoded symbol results.
+
+**Returns:** Symbol set (possibly empty) or NULL if not scanned
+
+**Since:** 0.10
+
+### zbar_image_set_symbols()
+
+```c
+void zbar_image_set_symbols(
+    zbar_image_t *image,
+    const zbar_symbol_set_t *symbols
+)
+```
+
+Associates symbol set with the image, replacing existing results. Use NULL to release current results.
+
+**Since:** 0.10
+
+### zbar_image_first_symbol()
+
+```c
+const zbar_symbol_t* zbar_image_first_symbol(
+    const zbar_image_t *image
+)
+```
+
+Retrieves first decoded symbol.
+
+**Returns:** First symbol or NULL if no results
+
+## File I/O
+
+### zbar_image_write()
+
+```c
+int zbar_image_write(
+    const zbar_image_t *image,
+    const char *filebase
+)
+```
+
+Dumps raw image data to a file for debug. Prefixes data with a 16-byte header.
+
+<ParamField path="filebase" type="const char*" required>
+  Base filename, appended with ".XXXX.zimg" where XXXX is format fourcc
+</ParamField>
+
+**Returns:** 0 on success or system error code
+
+### zbar_image_read()
+
+```c
+zbar_image_t* zbar_image_read(char *filename)
+```
+
+Reads back an image written by zbar_image_write().
+
+<Note>TBD - Not fully implemented</Note>
+
+## FourCC Utilities
+
+### zbar_fourcc()
+
+```c
+#define zbar_fourcc(a, b, c, d) \
+    ((unsigned long)(a) | ((unsigned long)(b) << 8) | \
+     ((unsigned long)(c) << 16) | ((unsigned long)(d) << 24))
+```
+
+Consistently computes fourcc values across architectures.
+
+**Since:** 0.11
+
+### zbar_fourcc_parse()
+
+```c
+static inline unsigned long zbar_fourcc_parse(
+    const char *format
+)
+```
+
+Parses a fourcc string into its encoded integer value.
+
+**Since:** 0.11
+
+## Usage Example
+
+```c image_example.c
+#include <zbar.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    // Create image
+    zbar_image_t *image = zbar_image_create();
+    
+    // Set format and size
+    zbar_image_set_format(image, zbar_fourcc('Y','8','0','0'));
+    zbar_image_set_size(image, 640, 480);
+    
+    // Allocate and set data
+    size_t data_size = 640 * 480;
+    unsigned char *data = malloc(data_size);
+    
+    // Load data from somewhere...
+    load_image_data(data, data_size);
+    
+    // Associate data with image
+    zbar_image_set_data(image, data, data_size, zbar_image_free_data);
+    
+    // Scan for barcodes
+    zbar_image_scanner_t *scanner = zbar_image_scanner_create();
+    int n = zbar_scan_image(scanner, image);
+    
+    printf("Found %d symbols\n", n);
+    
+    // Process results
+    const zbar_symbol_t *symbol = zbar_image_first_symbol(image);
+    for (; symbol; symbol = zbar_symbol_next(symbol)) {
+        printf("%s: %s\n",
+               zbar_get_symbol_name(zbar_symbol_get_type(symbol)),
+               zbar_symbol_get_data(symbol));
+    }
+    
+    // Cleanup
+    zbar_image_scanner_destroy(scanner);
+    zbar_image_destroy(image);  // Will call free() on data
+    
+    return 0;
+}
+```
+
+## Format Conversion Example
+
+```c convert_example.c
+#include <zbar.h>
+
+zbar_image_t *rgb_image = /* ... load RGB image ... */;
+
+// Convert RGB to grayscale for scanning
+zbar_image_t *gray = zbar_image_convert(rgb_image, 
+                                        zbar_fourcc('Y','8','0','0'));
+
+// Scan grayscale image
+zbar_image_scanner_t *scanner = zbar_image_scanner_create();
+zbar_scan_image(scanner, gray);
+
+// Copy results back to original
+const zbar_symbol_set_t *symbols = zbar_image_get_symbols(gray);
+zbar_symbol_set_ref(symbols, 1);
+zbar_image_set_symbols(rgb_image, symbols);
+zbar_symbol_set_ref(symbols, -1);
+
+// Cleanup
+zbar_image_destroy(gray);
+zbar_image_scanner_destroy(scanner);
+```
+
+## See Also
+
+- [Image Scanner](/api/image-scanner) - Scanning images
+- [Processor API](/api/processor) - High-level processing
+- [Image Scanning Concepts](/concepts/image-scanning) - How scanning works

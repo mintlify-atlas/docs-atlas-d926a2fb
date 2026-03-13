@@ -1,0 +1,599 @@
+---
+title: Video4Linux2 (V4L2) Support
+description: Using Video4Linux2 for video capture with ZBar on Linux systems
+---
+
+## Overview
+
+ZBar uses the Video4Linux2 (V4L2) API on Linux systems to capture video from cameras and other video devices. V4L2 is the second version of the Video4Linux kernel API and provides comprehensive support for video capture, format negotiation, and device control.
+
+<Note>
+  V4L2 support is automatically detected and used on Linux systems. ZBar also supports the older V4L1 API as a fallback, but V4L2 is strongly recommended and provides significantly better functionality.
+</Note>
+
+## Video Interfaces
+
+ZBar supports multiple video interface types (defined in `zbar/video.h:44-51`):
+
+- `VIDEO_V4L2` - Video4Linux2 (recommended for Linux)
+- `VIDEO_V4L1` - Video4Linux1 (legacy, fallback only)
+- `VIDEO_VFW` - Video for Windows (Windows)
+- `VIDEO_DSHOW` - DirectShow (Windows)
+
+## I/O Modes
+
+V4L2 supports three different I/O modes for transferring video data (defined in `zbar/video.h:53-58`):
+
+### VIDEO_READWRITE
+
+Uses standard `read()` system calls to transfer frame data. This is the simplest but least efficient method.
+
+```c
+zbar_video_t *video = zbar_video_create();
+
+// Request read/write mode (mode 1)
+zbar_video_request_iomode(video, 1);
+
+zbar_video_open(video, "/dev/video0");
+```
+
+**Pros:**
+- Simple and universally supported
+- No special setup required
+
+**Cons:**
+- Slowest method due to data copying
+- Not recommended for real-time applications
+
+### VIDEO_MMAP (Memory Mapped)
+
+Maps video buffers directly into userspace memory using `mmap()`. This is the most common and efficient method.
+
+```c
+zbar_video_t *video = zbar_video_create();
+
+// Request mmap mode (mode 2) - this is usually auto-detected
+zbar_video_request_iomode(video, 2);
+
+zbar_video_open(video, "/dev/video0");
+```
+
+**Pros:**
+- Zero-copy data transfer
+- Best performance for most use cases
+- Widely supported by drivers
+
+**Cons:**
+- Requires kernel driver support
+- Buffer management is more complex
+
+### VIDEO_USERPTR (User Pointer)
+
+Allows application to provide its own buffers. Useful for advanced scenarios.
+
+```c
+zbar_video_t *video = zbar_video_create();
+
+// Request userptr mode (mode 3)
+zbar_video_request_iomode(video, 3);
+
+zbar_video_open(video, "/dev/video0");
+```
+
+**Pros:**
+- Application controls buffer allocation
+- Useful for sharing buffers with other subsystems
+
+**Cons:**
+- Not all drivers support it
+- More complex buffer management
+
+<Warning>
+  If you request an I/O mode that the driver doesn't support, ZBar will return an error. Use mode 0 (auto-detect) to let ZBar choose the best available mode.
+</Warning>
+
+## Device Discovery
+
+### Opening a Video Device
+
+Video devices on Linux are typically located at `/dev/video*`:
+
+```c
+zbar_video_t *video = zbar_video_create();
+
+if (zbar_video_open(video, "/dev/video0") < 0) {
+    fprintf(stderr, "Failed to open video device: %s\n",
+            zbar_video_error_string(video, 0));
+    return -1;
+}
+```
+
+### Listing Available Devices
+
+To enumerate available video devices, scan `/dev` for `video*` entries:
+
+```bash
+# List all video devices
+ls -l /dev/video*
+
+# Get device information
+v4l2-ctl --list-devices
+```
+
+### Device Capabilities
+
+You can query device capabilities using V4L2 directly:
+
+```c
+#include <linux/videodev2.h>
+#include <sys/ioctl.h>
+
+int fd = open("/dev/video0", O_RDWR);
+struct v4l2_capability cap;
+
+if (ioctl(fd, VIDIOC_QUERYCAP, &cap) == 0) {
+    printf("Driver: %s\n", cap.driver);
+    printf("Card: %s\n", cap.card);
+    printf("Bus: %s\n", cap.bus_info);
+    printf("Capabilities: 0x%08x\n", cap.capabilities);
+}
+
+close(fd);
+```
+
+## Format Negotiation
+
+### Supported Formats
+
+ZBar automatically enumerates supported pixel formats when opening a device (implemented in `zbar/video/v4l2.c:437-550`). Common formats include:
+
+- **YUYV (YUV 4:2:2)** - Most common webcam format
+- **MJPEG** - Motion JPEG (compressed)
+- **RGB24** - 24-bit RGB
+- **GREY/Y800** - 8-bit grayscale (ideal for barcode scanning)
+- **NV12** - Y plane + UV plane (efficient format)
+
+### Requesting a Specific Format
+
+You can request a specific image size before opening the device:
+
+```c
+zbar_video_t *video = zbar_video_create();
+
+// Request 640x480 resolution
+zbar_video_request_size(video, 640, 480);
+
+// Open device - actual resolution may be different
+zbar_video_open(video, "/dev/video0");
+
+// Check actual resolution
+int width = zbar_video_get_width(video);
+int height = zbar_video_get_height(video);
+printf("Using resolution: %dx%d\n", width, height);
+```
+
+<Note>
+  The driver may adjust your requested resolution to the nearest supported size. Always check the actual dimensions after opening.
+</Note>
+
+### Format Initialization
+
+ZBar initializes the video format in `v4l2_init()` (source at `zbar/video/v4l2.c:319-352`):
+
+```c
+// This is done internally by ZBar
+struct v4l2_format fmt;
+fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+fmt.fmt.pix.width = width;
+fmt.fmt.pix.height = height;
+fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
+fmt.fmt.pix.field = V4L2_FIELD_NONE;
+
+ioctl(fd, VIDIOC_S_FMT, &fmt);
+```
+
+## Video Controls
+
+V4L2 provides extensive control over camera parameters like brightness, contrast, exposure, etc.
+
+### Setting Controls
+
+```c
+zbar_video_t *video = zbar_video_create();
+zbar_video_open(video, "/dev/video0");
+
+// Set brightness
+int brightness = 128;
+if (zbar_video_set_control(video, "brightness", brightness) < 0) {
+    fprintf(stderr, "Failed to set brightness\n");
+}
+
+// Set contrast  
+int contrast = 150;
+zbar_video_set_control(video, "contrast", contrast);
+
+// Enable auto exposure
+int auto_exposure = 3; // Aperture priority mode
+zbar_video_set_control(video, "exposure_auto", auto_exposure);
+```
+
+### Getting Control Values
+
+```c
+int brightness;
+if (zbar_video_get_control(video, "brightness", &brightness) == 0) {
+    printf("Current brightness: %d\n", brightness);
+}
+```
+
+### Common Video Controls
+
+<ParamField path="brightness" type="integer">
+  Picture brightness or black level.
+</ParamField>
+
+<ParamField path="contrast" type="integer">
+  Picture contrast or luma gain.
+</ParamField>
+
+<ParamField path="saturation" type="integer">
+  Picture color saturation or chroma gain.
+</ParamField>
+
+<ParamField path="hue" type="integer">
+  Hue or color balance.
+</ParamField>
+
+<ParamField path="sharpness" type="integer">
+  Picture sharpness.
+</ParamField>
+
+<ParamField path="exposure_auto" type="menu">
+  Auto exposure mode:
+  - 0: Auto
+  - 1: Manual
+  - 2: Shutter priority  
+  - 3: Aperture priority
+</ParamField>
+
+<ParamField path="exposure_absolute" type="integer">
+  Exposure time in 100 microsecond units (when manual mode).
+</ParamField>
+
+<ParamField path="focus_auto" type="boolean">
+  Enable automatic focus.
+</ParamField>
+
+<ParamField path="focus_absolute" type="integer">
+  Focus position (when auto focus disabled).
+</ParamField>
+
+<ParamField path="white_balance_auto_preset" type="menu">
+  Auto white balance preset modes.
+</ParamField>
+
+<ParamField path="gain" type="integer">
+  Gain control (amplification).
+</ParamField>
+
+### Enumerating Available Controls
+
+```c
+struct video_controls_s *controls;
+int i = 0;
+
+// Get all available controls
+while ((controls = zbar_video_get_controls(video, i++)) != NULL) {
+    printf("Control: %s\n", controls->name);
+    printf("  Group: %s\n", controls->group);
+    printf("  Type: %d\n", controls->type);
+    
+    if (controls->type == VIDEO_CNTL_INTEGER) {
+        printf("  Range: %lld to %lld (step %llu)\n",
+               controls->min, controls->max, controls->step);
+        printf("  Default: %lld\n", controls->def);
+    }
+}
+```
+
+## libv4l2 Integration
+
+ZBar automatically uses libv4l2 when available (detected by `HAVE_LIBV4L2_H` in `zbar/video/v4l2.c:41-49`).
+
+### What is libv4l2?
+
+libv4l2 is a userspace library that provides:
+- Automatic format conversion for cameras with proprietary formats
+- Emulation of missing features
+- Bug workarounds for broken drivers
+
+### When libv4l2 is Available
+
+```c
+// These map to libv4l2 functions
+v4l2_open()    -> open()
+v4l2_close()   -> close()
+v4l2_ioctl()   -> ioctl()
+v4l2_mmap()    -> mmap()
+v4l2_munmap()  -> munmap()
+```
+
+### When libv4l2 is NOT Available
+
+```c
+// Direct system calls are used
+#define v4l2_close  close
+#define v4l2_ioctl  ioctl
+#define v4l2_mmap   mmap
+#define v4l2_munmap munmap
+```
+
+<Note>
+  Install libv4l2 development packages for better camera compatibility:
+  ```bash
+  # Debian/Ubuntu
+  sudo apt-get install libv4l-dev
+  
+  # Fedora/RHEL
+  sudo dnf install libv4l-devel
+  ```
+</Note>
+
+## Buffer Management
+
+### Requesting Buffers
+
+ZBar requests video buffers from the kernel (typically 4 buffers for triple buffering):
+
+```c
+// This is done internally by ZBar
+struct v4l2_requestbuffers rb;
+memset(&rb, 0, sizeof(rb));
+rb.count = 4;  // Number of buffers
+rb.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+rb.memory = V4L2_MEMORY_MMAP;
+
+if (ioctl(fd, VIDIOC_REQBUFS, &rb) < 0) {
+    perror("VIDIOC_REQBUFS");
+}
+```
+
+### Queueing and Dequeuing Buffers
+
+```c
+// Queue a buffer (done by v4l2_nq)
+struct v4l2_buffer buf;
+memset(&buf, 0, sizeof(buf));
+buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+buf.memory = V4L2_MEMORY_MMAP;
+buf.index = 0;
+ioctl(fd, VIDIOC_QBUF, &buf);
+
+// Dequeue a buffer when frame is ready (done by v4l2_dq)
+memset(&buf, 0, sizeof(buf));
+buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+buf.memory = V4L2_MEMORY_MMAP;
+ioctl(fd, VIDIOC_DQBUF, &buf);
+```
+
+## Streaming Control
+
+### Starting Video Stream
+
+```c
+zbar_video_enable(video, 1);
+```
+
+Internally, this calls `VIDIOC_STREAMON`:
+
+```c
+enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+ioctl(fd, VIDIOC_STREAMON, &type);
+```
+
+### Stopping Video Stream
+
+```c
+zbar_video_enable(video, 0);
+```
+
+Internally, this calls `VIDIOC_STREAMOFF`:
+
+```c
+enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+ioctl(fd, VIDIOC_STREAMOFF, &type);
+```
+
+### Capturing Frames
+
+```c
+zbar_video_enable(video, 1);
+
+while (scanning) {
+    zbar_image_t *image = zbar_video_next_image(video);
+    if (!image) {
+        fprintf(stderr, "Failed to capture frame\n");
+        break;
+    }
+    
+    // Process image
+    int n = zbar_scan_image(scanner, image);
+    
+    // Release image back to video driver
+    zbar_image_destroy(image);
+}
+
+zbar_video_enable(video, 0);
+```
+
+## Platform Considerations
+
+### Kernel Version
+
+V4L2 has evolved significantly over kernel versions:
+
+- **Kernel 2.6.x**: Basic V4L2 support
+- **Kernel 3.16+**: Recommended for full feature support
+- **Kernel 4.x+**: Modern features and better device support
+
+### Permissions
+
+Video devices typically require appropriate permissions:
+
+```bash
+# Check device permissions
+ls -l /dev/video0
+
+# Add user to video group
+sudo usermod -a -G video $USER
+
+# Or set temporary permissions (not recommended for production)
+sudo chmod 666 /dev/video0
+```
+
+### udev Rules
+
+For consistent device naming and permissions:
+
+```bash
+# /etc/udev/rules.d/99-webcam.rules
+KERNEL=="video[0-9]*", SUBSYSTEM=="video4linux", GROUP="video", MODE="0660"
+```
+
+## Troubleshooting
+
+### Device Not Found
+
+```bash
+# Check if device exists
+ls /dev/video*
+
+# Check kernel modules
+lsmod | grep -i video
+
+# Check dmesg for errors
+dmesg | grep -i video
+```
+
+### Format Not Supported
+
+```c
+// Use zbar_negotiate_format() to find compatible format
+zbar_window_t *window = zbar_window_create();
+zbar_negotiate_format(video, window);
+```
+
+### Buffer Queue Errors
+
+<Accordion title="VIDIOC_QBUF failed">
+  Check that:
+  - Buffers were properly requested with VIDIOC_REQBUFS
+  - Buffer index is valid
+  - Streaming is enabled
+  - Buffer isn't already queued
+</Accordion>
+
+<Accordion title="VIDIOC_DQBUF failed">
+  Check that:
+  - Streaming is enabled
+  - Buffers have been queued
+  - Use `select()` or `poll()` to wait for frames
+  
+  ```c
+  int fd = zbar_video_get_fd(video);
+  
+  fd_set fds;
+  FD_ZERO(&fds);
+  FD_SET(fd, &fds);
+  
+  struct timeval tv = {.tv_sec = 2, .tv_usec = 0};
+  int r = select(fd + 1, &fds, NULL, NULL, &tv);
+  
+  if (r > 0) {
+      zbar_image_t *img = zbar_video_next_image(video);
+  }
+  ```
+</Accordion>
+
+### Driver Issues
+
+```bash
+# Test camera with v4l2-ctl
+v4l2-ctl -d /dev/video0 --list-formats-ext
+v4l2-ctl -d /dev/video0 --all
+
+# Test with simple capture
+v4l2-ctl -d /dev/video0 --stream-mmap --stream-count=1
+```
+
+### Performance Issues
+
+1. **Use MMAP mode** instead of read/write
+2. **Lower resolution** if CPU usage is high  
+3. **Reduce frame rate** using V4L2_CID_EXPOSURE controls
+4. **Disable format conversion** by requesting native camera format
+
+## Advanced Usage
+
+### Using select() for Non-blocking Capture
+
+```c
+int fd = zbar_video_get_fd(video);
+if (fd < 0) {
+    fprintf(stderr, "Cannot get file descriptor\n");
+    return -1;
+}
+
+while (1) {
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(fd, &fds);
+    
+    struct timeval tv;
+    tv.tv_sec = 2;
+    tv.tv_usec = 0;
+    
+    int r = select(fd + 1, &fds, NULL, NULL, &tv);
+    
+    if (r == -1) {
+        if (errno == EINTR)
+            continue;
+        perror("select");
+        break;
+    }
+    
+    if (r == 0) {
+        printf("Timeout\n");
+        continue;
+    }
+    
+    // Frame is ready
+    zbar_image_t *image = zbar_video_next_image(video);
+    if (image) {
+        // Process image
+        zbar_scan_image(scanner, image);
+        zbar_image_destroy(image);
+    }
+}
+```
+
+### Custom Format Handling
+
+```c
+// Request specific format before initialization
+zbar_video_force_format(processor, 
+                        zbar_fourcc('Y','U','Y','V'),  // Input format
+                        zbar_fourcc('Y','8','0','0')); // Output format
+```
+
+## Reference
+
+- [V4L2 API Documentation](https://www.kernel.org/doc/html/latest/userspace-api/media/v4l/v4l2.html)
+- [libv4l](https://linuxtv.org/wiki/index.php/Libv4l)
+- ZBar video implementation: `zbar/video/v4l2.c`
+
+## Related Topics
+
+- [Configuration System](/advanced/configuration) - Configure decoder behavior
+- [Performance Optimization](/concepts/image-scanning) - Optimize video scanning
+- [API Reference](/api/video) - Complete video API documentation

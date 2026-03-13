@@ -1,80 +1,493 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: "Quick Start"
+description: "Get started with ZBar barcode scanning in minutes"
 ---
 
-## Get started in three steps
+This guide will help you scan your first barcode using ZBar. We'll cover command-line usage, C API, and Python examples.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Make sure you have ZBar installed on your system. If not, see the [Installation Guide](/installation).
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+## Command-Line Scanning
+
+The fastest way to scan a barcode is using the `zbarimg` command-line tool.
+
+### Scan an Image File
+
+```bash
+zbarimg image.png
+```
+
+Example output:
+```
+CODE-128:https://github.com/mchehab/zbar
+scanned 1 barcode symbols from 1 images in 0.01 seconds
+```
+
+### Scan from Webcam
+
+Use `zbarcam` to scan barcodes from a video device:
+
+```bash
+# Use default video device
+zbarcam
+
+# Use specific device
+zbarcam /dev/video0
+```
+
+<Tip>
+  Press `q` or `Esc` to quit the video scanner. Detected barcodes are printed to stdout in real-time.
+</Tip>
+
+### Advanced Command-Line Options
+
+<CodeGroup>
+```bash Output Raw Data Only
+# Print only the barcode data (no metadata)
+zbarimg --raw image.png
+```
+
+```bash Specify Barcode Type
+# Only scan for QR codes
+zbarimg --set qrcode.enable=1 --set *.enable=0 image.png
+
+# Only scan for Code 128
+zbarimg --set code128.enable=1 --set *.enable=0 image.png
+```
+
+```bash Batch Scanning
+# Scan multiple images
+zbarimg *.jpg
+
+# Recursive directory scan
+find /path/to/images -name "*.png" -exec zbarimg {} \;
+```
+</CodeGroup>
+
+## C API Quick Start
+
+Here's a complete example of scanning an image using the C API.
+
+### Basic Image Scanner
+
+<Steps>
+  <Step title="Include Headers">
+    ```c
+    #include <stdio.h>
+    #include <zbar.h>
+    ```
+  </Step>
+  <Step title="Create Scanner">
+    ```c
+    // Create image scanner instance
+    zbar_image_scanner_t *scanner = zbar_image_scanner_create();
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    // Configure scanner (enable all symbologies)
+    zbar_image_scanner_set_config(scanner, 0, ZBAR_CFG_ENABLE, 1);
+    ```
+  </Step>
+  <Step title="Load and Prepare Image">
+    ```c
+    // Create image object
+    zbar_image_t *image = zbar_image_create();
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    // Set image format (Y800 = 8-bit grayscale)
+    zbar_image_set_format(image, zbar_fourcc('Y', '8', '0', '0'));
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    // Set image dimensions
+    zbar_image_set_size(image, width, height);
+    
+    // Set image data
+    zbar_image_set_data(image, raw_data, width * height, zbar_image_free_data);
+    ```
+  </Step>
+  <Step title="Scan for Barcodes">
+    ```c
+    // Scan the image
+    int n = zbar_scan_image(scanner, image);
+    
+    printf("Found %d barcode(s)\n", n);
+    ```
+  </Step>
+  <Step title="Extract Results">
+    ```c
+    // Get first symbol
+    const zbar_symbol_t *symbol = zbar_image_first_symbol(image);
+    
+    // Iterate through all symbols
+    for (; symbol; symbol = zbar_symbol_next(symbol)) {
+        zbar_symbol_type_t type = zbar_symbol_get_type(symbol);
+        const char *data = zbar_symbol_get_data(symbol);
+        
+        printf("Decoded %s: \"%s\"\n", 
+               zbar_get_symbol_name(type), data);
+    }
+    ```
+  </Step>
+  <Step title="Cleanup">
+    ```c
+    // Free resources
+    zbar_image_destroy(image);
+    zbar_image_scanner_destroy(scanner);
+    ```
+  </Step>
+</Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+### Complete Working Example
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+This example uses libpng to load an image and scan it:
 
-### Step 3: Go live
+```c scan_image.c
+#include <png.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <zbar.h>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+zbar_image_scanner_t *scanner = NULL;
 
-## Next steps
+// Load PNG image data (simplified)
+static void get_data(const char *name, int *width, int *height, void **raw)
+{
+    FILE *file = fopen(name, "rb");
+    if (!file) exit(2);
+    
+    png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, 
+                                             NULL, NULL, NULL);
+    if (!png) exit(3);
+    
+    png_infop info = png_create_info_struct(png);
+    if (!info) exit(4);
+    
+    png_init_io(png, file);
+    png_read_info(png, info);
+    
+    // Configure for 8bpp grayscale
+    int color = png_get_color_type(png, info);
+    int bits = png_get_bit_depth(png, info);
+    
+    if (color & PNG_COLOR_TYPE_PALETTE)
+        png_set_palette_to_rgb(png);
+    if (color == PNG_COLOR_TYPE_GRAY && bits < 8)
+        png_set_expand_gray_1_2_4_to_8(png);
+    if (bits == 16)
+        png_set_strip_16(png);
+    if (color & PNG_COLOR_MASK_ALPHA)
+        png_set_strip_alpha(png);
+    if (color & PNG_COLOR_MASK_COLOR)
+        png_set_rgb_to_gray_fixed(png, 1, -1, -1);
+    
+    *width = png_get_image_width(png, info);
+    *height = png_get_image_height(png, info);
+    *raw = calloc(*width * *height, sizeof(png_byte));
+    
+    png_bytep *rows = calloc(*height, sizeof(*rows));
+    for (int i = 0; i < *height; i++)
+        rows[i] = ((png_bytep)(*raw)) + (*width * i);
+    
+    png_read_image(png, rows);
+    free(rows);
+    fclose(file);
+}
 
-Now that you have your docs running, explore these key features:
+int main(int argc, char **argv)
+{
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <image.png>\n", argv[0]);
+        return 1;
+    }
+    
+    // Create scanner
+    scanner = zbar_image_scanner_create();
+    zbar_image_scanner_set_config(scanner, 0, ZBAR_CFG_ENABLE, 1);
+    
+    // Load image
+    int width = 0, height = 0;
+    void *raw = NULL;
+    get_data(argv[1], &width, &height, &raw);
+    
+    // Create and configure image
+    zbar_image_t *image = zbar_image_create();
+    zbar_image_set_format(image, zbar_fourcc('Y', '8', '0', '0'));
+    zbar_image_set_size(image, width, height);
+    zbar_image_set_data(image, raw, width * height, zbar_image_free_data);
+    
+    // Scan image
+    int n = zbar_scan_image(scanner, image);
+    
+    // Extract results
+    const zbar_symbol_t *symbol = zbar_image_first_symbol(image);
+    for (; symbol; symbol = zbar_symbol_next(symbol)) {
+        zbar_symbol_type_t typ = zbar_symbol_get_type(symbol);
+        const char *data = zbar_symbol_get_data(symbol);
+        printf("decoded %s symbol \"%s\"\n", 
+               zbar_get_symbol_name(typ), data);
+    }
+    
+    // Cleanup
+    zbar_image_destroy(image);
+    zbar_image_scanner_destroy(scanner);
+    
+    return (n > 0) ? 0 : 1;
+}
+```
 
-<CardGroup cols={2}>
+### Compiling C Programs
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+<CodeGroup>
+```bash Using pkg-config
+gcc -o scan_image scan_image.c $(pkg-config --cflags --libs zbar) -lpng
+```
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+```bash Manual Linking
+gcc -o scan_image scan_image.c -lzbar -lpng
+```
+</CodeGroup>
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
+## Python Quick Start
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
+Python bindings provide a high-level, easy-to-use interface.
 
-</CardGroup>
+### Installation
+
+```bash
+pip install zbar-py
+# or
+pip install pyzbar
+```
+
+### Basic Image Scanning
+
+<Steps>
+  <Step title="Import Libraries">
+    ```python
+    import zbar
+    from PIL import Image
+    ```
+  </Step>
+  <Step title="Create Scanner">
+    ```python
+    # Create image scanner
+    scanner = zbar.ImageScanner()
+    
+    # Configure scanner (enable all symbologies)
+    scanner.parse_config('enable')
+    ```
+  </Step>
+  <Step title="Load Image">
+    ```python
+    # Open image and convert to grayscale
+    pil = Image.open('barcode.png').convert('L')
+    width, height = pil.size
+    raw = pil.tobytes()
+    ```
+  </Step>
+  <Step title="Create ZBar Image">
+    ```python
+    # Wrap image data
+    image = zbar.Image(width, height, 'Y800', raw)
+    ```
+  </Step>
+  <Step title="Scan and Extract Results">
+    ```python
+    # Scan the image
+    scanner.scan(image)
+    
+    # Extract results
+    for symbol in image:
+        print('Decoded', symbol.type, 'symbol:', symbol.data)
+    ```
+  </Step>
+</Steps>
+
+### Complete Python Example
+
+```python scan_image.py
+#!/usr/bin/env python
+from sys import argv
+import zbar
+from PIL import Image
+
+if len(argv) < 2:
+    print("Usage: python scan_image.py <image_file>")
+    exit(1)
+
+# Create a reader
+scanner = zbar.ImageScanner()
+
+# Configure the reader
+scanner.parse_config('enable')
+
+# Obtain image data
+pil = Image.open(argv[1]).convert('L')
+width, height = pil.size
+raw = pil.tobytes()
+
+# Wrap image data
+image = zbar.Image(width, height, 'Y800', raw)
+
+# Scan the image for barcodes
+scanner.scan(image)
+
+# Extract results
+for symbol in image:
+    print('decoded', symbol.type, 'symbol', '"%s"' % symbol.data)
+    
+    # Additional symbol information
+    print('  Quality:', symbol.quality)
+    print('  Location:', symbol.location)
+
+# Clean up
+del(image)
+```
+
+### Video Processing Example
+
+```python video_scan.py
+#!/usr/bin/env python
+import zbar
+from sys import argv
+
+# Create a Processor
+proc = zbar.Processor()
+
+# Configure the Processor
+proc.parse_config('enable')
+
+# Initialize with video device
+device = '/dev/video0'
+if len(argv) > 1:
+    device = argv[1]
+proc.init(device)
+
+# Enable preview window
+proc.visible = True
+
+# Process one barcode
+try:
+    proc.process_one()
+except zbar.WindowClosed:
+    print("Window closed")
+
+# Hide preview
+proc.visible = False
+
+# Extract results
+for symbol in proc.results:
+    print('decoded', symbol.type, 'symbol', '"%s"' % symbol.data)
+```
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  The Processor class provides a complete scanning solution with video input and GUI display. It's ideal for quick prototyping and simple applications.
 </Note>
+
+## Configuration Options
+
+### Enable Specific Symbologies
+
+<CodeGroup>
+```c C API
+// Enable only QR codes
+zbar_image_scanner_set_config(scanner, ZBAR_QRCODE, ZBAR_CFG_ENABLE, 1);
+zbar_image_scanner_set_config(scanner, 0, ZBAR_CFG_ENABLE, 0);
+
+// Enable multiple types
+zbar_image_scanner_set_config(scanner, ZBAR_CODE128, ZBAR_CFG_ENABLE, 1);
+zbar_image_scanner_set_config(scanner, ZBAR_CODE39, ZBAR_CFG_ENABLE, 1);
+```
+
+```python Python
+# Enable specific symbology
+scanner.set_config(zbar.QRCODE, zbar.Config.ENABLE, 1)
+scanner.set_config(0, zbar.Config.ENABLE, 0)  # Disable others
+
+# Or use parse_config
+scanner.parse_config('qrcode.enable')
+scanner.parse_config('*.enable=0')  # Disable all
+```
+
+```bash Command Line
+# Enable only QR codes
+zbarimg --set qrcode.enable=1 --set *.enable=0 image.png
+
+# Enable Code 128 and Code 39
+zbarimg --set code128.enable=1 --set code39.enable=1 \
+        --set *.enable=0 image.png
+```
+</CodeGroup>
+
+### Advanced Configuration
+
+```c
+// Set minimum barcode length
+zbar_image_scanner_set_config(scanner, ZBAR_CODE128, 
+                              ZBAR_CFG_MIN_LEN, 6);
+
+// Set maximum barcode length
+zbar_image_scanner_set_config(scanner, ZBAR_CODE128, 
+                              ZBAR_CFG_MAX_LEN, 20);
+
+// Enable position data collection
+zbar_image_scanner_set_config(scanner, 0, 
+                              ZBAR_CFG_POSITION, 1);
+
+// Test inverted barcodes if normal scan fails
+zbar_image_scanner_set_config(scanner, 0, 
+                              ZBAR_CFG_TEST_INVERTED, 1);
+```
+
+## Common Issues and Solutions
+
+<AccordionGroup>
+  <Accordion title="No barcodes detected">
+    - Ensure the image is in grayscale format (Y800 or GRAY)
+    - Check image quality and resolution
+    - Try enabling `ZBAR_CFG_TEST_INVERTED` for white-on-black barcodes
+    - Adjust scan density with `ZBAR_CFG_X_DENSITY` and `ZBAR_CFG_Y_DENSITY`
+  </Accordion>
+  <Accordion title="Video device not found">
+    - Check device permissions: `ls -l /dev/video0`
+    - Add user to video group: `sudo usermod -a -G video $USER`
+    - Verify device exists: `v4l2-ctl --list-devices`
+  </Accordion>
+  <Accordion title="Poor scan performance">
+    - Use lower resolution images when possible
+    - Reduce scan density for faster processing
+    - Enable only necessary symbologies
+    - Use the cache for video scanning: `zbar_image_scanner_enable_cache(scanner, 1)`
+  </Accordion>
+  <Accordion title="Image format errors">
+    ZBar requires grayscale images. Convert using:
+    ```c
+    // C API
+    zbar_image_t *gray = zbar_image_convert(image, 
+                                           zbar_fourcc('Y','8','0','0'));
+    ```
+    ```python
+    # Python
+    image = image.convert('L')  # Convert PIL image to grayscale
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="C API Reference" icon="code" href="/api/image-scanner">
+    Explore the complete C API documentation
+  </Card>
+  <Card title="Python API Reference" icon="python" href="/bindings/python">
+    Learn about Python bindings and advanced features
+  </Card>
+  <Card title="Video Integration" icon="video" href="/concepts/video-capture">
+    Integrate live video scanning into your application
+  </Card>
+  <Card title="GUI Widgets" icon="window" href="/widgets/qt-widget">
+    Use Qt and GTK widgets for GUI applications
+  </Card>
+</CardGroup>
+
+<Tip>
+  For production applications, consider enabling the inter-frame cache when scanning video streams. This filters duplicate results and adds consistency checking.
+</Tip>

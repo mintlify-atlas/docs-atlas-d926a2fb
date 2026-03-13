@@ -1,0 +1,360 @@
+---
+title: zbarcam
+description: Real-time video barcode scanner
+icon: video
+---
+
+## Overview
+
+`zbarcam` is a command-line tool that scans and decodes barcodes from a live video stream. It uses video4linux (v4l) on Linux, DirectShow on Windows, or the native video interface on macOS to access your camera or video device.
+
+The program displays a live video window and continuously scans for barcodes, outputting decoded data to stdout. It supports all barcode symbologies enabled in the ZBar library.
+
+## Command Syntax
+
+```bash
+zbarcam [options] [/dev/video?]
+```
+
+### Arguments
+
+<ParamField path="device" type="string" optional>
+  Video device path (e.g., `/dev/video0` on Linux). If not specified, zbarcam will attempt to use the default video device.
+</ParamField>
+
+## Options
+
+### General Options
+
+<ParamField path="-h, --help" type="flag">
+  Display help text and exit
+</ParamField>
+
+<ParamField path="--version" type="flag">
+  Display version information and exit
+</ParamField>
+
+<ParamField path="-v, --verbose" type="flag">
+  Increase debug output level. Can be specified multiple times for more verbosity.
+</ParamField>
+
+<ParamField path="--verbose=N" type="integer">
+  Set specific debug output level (0-255)
+</ParamField>
+
+### Output Options
+
+<ParamField path="-q, --quiet" type="flag">
+  Disable beep sound when a barcode is decoded
+</ParamField>
+
+<ParamField path="--xml" type="flag">
+  Output decoded data in XML format
+</ParamField>
+
+<ParamField path="--raw" type="flag">
+  Output decoded symbol data without converting charsets or adding format prefixes
+</ParamField>
+
+### Scanning Options
+
+<ParamField path="-1, --oneshot" type="flag">
+  Exit after scanning one barcode successfully
+</ParamField>
+
+### Display Options
+
+<ParamField path="--nodisplay" type="flag">
+  Disable video display window (headless mode)
+</ParamField>
+
+<ParamField path="--prescale=<W>x<H>" type="string">
+  Request alternate video image size from the driver. Format: `WIDTHxHEIGHT` (e.g., `640x480`)
+</ParamField>
+
+### Configuration Options
+
+<ParamField path="-S<CONFIG>[=<VALUE>]" type="string">
+  Set decoder/scanner configuration option to specified value (or 1 if value omitted)
+</ParamField>
+
+<ParamField path="--set <CONFIG>[=<VALUE>]" type="string">
+  Set decoder/scanner configuration option (long form)
+</ParamField>
+
+<ParamField path="--nodbus" type="flag">
+  Disable D-Bus message broadcasting (if D-Bus support is compiled in)
+</ParamField>
+
+### Advanced Options
+
+<ParamField path="--v4l=<VERSION>" type="integer">
+  Request specific Video4Linux interface version (1 or 2)
+</ParamField>
+
+<ParamField path="--iomode=<MODE>" type="integer">
+  Request specific I/O mode for video capture
+</ParamField>
+
+<ParamField path="--infmt=<FOURCC>" type="string">
+  Force input format (4-character FourCC code)
+</ParamField>
+
+<ParamField path="--outfmt=<FOURCC>" type="string">
+  Force output format (4-character FourCC code)
+</ParamField>
+
+## Interactive Controls
+
+When the video display window is active, you can use these keyboard shortcuts:
+
+- **q** or **Q**: Quit the application
+- **Space**: Toggle scanning (pause/resume)
+- **b** or **B**: Increase brightness (Linux/V4L2 only)
+- **n** or **N**: Decrease brightness (Linux/V4L2 only)
+
+## Examples
+
+### Basic Usage
+
+Scan using the default video device:
+
+```bash
+zbarcam
+```
+
+### Specific Video Device
+
+Scan using a specific video device:
+
+```bash
+zbarcam /dev/video1
+```
+
+### Quiet Mode (No Beep)
+
+Disable the beep sound when barcodes are detected:
+
+```bash
+zbarcam --quiet
+```
+
+### One-Shot Mode
+
+Exit after scanning one barcode:
+
+```bash
+zbarcam --oneshot
+```
+
+### XML Output
+
+Output decoded barcodes in XML format:
+
+```bash
+zbarcam --xml > output.xml
+```
+
+### Custom Video Resolution
+
+Request a specific video resolution:
+
+```bash
+zbarcam --prescale=1280x720
+```
+
+### Headless Mode
+
+Run without displaying the video window:
+
+```bash
+zbarcam --nodisplay
+```
+
+### Enable Specific Barcode Types
+
+Enable only QR codes:
+
+```bash
+zbarcam -Sqrcode.enable=1 -S*.disable=1
+```
+
+Enable all EAN/UPC variants:
+
+```bash
+zbarcam -Sean*.enable
+```
+
+### Configure Scanner Density
+
+Increase scanning density for better detection:
+
+```bash
+zbarcam -Sx-density=3 -Sy-density=3
+```
+
+## Configuration Settings
+
+You can configure various decoder and scanner options using `-S` or `--set`. Common configurations include:
+
+- **Symbology controls**: `<symbology>.enable`, `<symbology>.disable`
+- **Scanning density**: `x-density`, `y-density` (1-9)
+- **Binary output**: `binary` (output raw binary data)
+
+Examples:
+
+```bash
+# Enable ISBN-10 barcodes
+zbarcam -Sisbn10.enable
+
+# Disable all symbologies except Code 128
+zbarcam -S*.disable -Scode128.enable
+
+# Increase scan density
+zbarcam -Sx-density=2 -Sy-density=2
+```
+
+## Output Format
+
+### Default Format
+
+By default, zbarcam outputs decoded barcodes in the format:
+
+```
+SYMBOLOGY-TYPE:DATA
+```
+
+Example:
+```
+QR-CODE:https://example.com
+EAN-13:5901234123457
+```
+
+### XML Format
+
+With `--xml`, output is structured as:
+
+```xml
+<barcodes xmlns='http://zbar.sourceforge.net/2008/barcode'>
+  <source device='/dev/video0'>
+    <index num='123'>
+      <symbol type='QR-Code' quality='1'>
+        <data>https://example.com</data>
+      </symbol>
+    </index>
+  </source>
+</barcodes>
+```
+
+### Raw Format
+
+With `--raw`, only the decoded data is output without any formatting or type information.
+
+## Exit Codes
+
+- **0**: Success
+- **1**: Error occurred (invalid options, device access failure, etc.)
+- **Non-zero**: Various error conditions
+
+## Platform-Specific Notes
+
+### Linux
+
+<Note>
+  zbarcam uses Video4Linux2 (v4l2) interface on Linux. Requires kernel 3.16 or later for full support.
+</Note>
+
+Common video devices:
+- `/dev/video0` - Default webcam
+- `/dev/video1` - Second camera
+
+You can list available video devices:
+```bash
+ls /dev/video*
+```
+
+### Windows
+
+<Note>
+  On Windows, zbarcam uses DirectShow to access video devices. Device paths are handled differently than Linux.
+</Note>
+
+Run without specifying a device to use the default camera:
+```bash
+zbarcam
+```
+
+### macOS
+
+<Note>
+  macOS uses native video interfaces. Camera access may require granting permissions to the application.
+</Note>
+
+## D-Bus Integration
+
+When D-Bus support is enabled (and not disabled with `--nodbus`), zbarcam broadcasts decoded barcode events via D-Bus on the system bus.
+
+Monitor barcode events:
+```bash
+dbus-monitor --system interface=org.linuxtv.Zbar1.Code
+```
+
+<Tip>
+  D-Bus integration allows other applications to receive barcode scan events in real-time, enabling system-wide barcode scanning integration.
+</Tip>
+
+## Troubleshooting
+
+### No Video Device Found
+
+<Warning>
+  If zbarcam cannot find a video device, ensure:
+  - Your camera is connected and recognized by the system
+  - You have appropriate permissions to access video devices
+  - On Linux, your user is in the `video` group: `sudo usermod -a -G video $USER`
+</Warning>
+
+### Poor Detection Rate
+
+If barcodes are not being detected reliably:
+
+1. Increase scanning density:
+   ```bash
+   zbarcam -Sx-density=3 -Sy-density=3
+   ```
+
+2. Adjust video resolution:
+   ```bash
+   zbarcam --prescale=1920x1080
+   ```
+
+3. Ensure adequate lighting and focus
+
+4. Enable only the barcode types you need:
+   ```bash
+   zbarcam -S*.disable -Sqrcode.enable
+   ```
+
+### Performance Issues
+
+For better performance:
+
+1. Use lower resolution:
+   ```bash
+   zbarcam --prescale=640x480
+   ```
+
+2. Disable the display window:
+   ```bash
+   zbarcam --nodisplay
+   ```
+
+3. Reduce scanning density:
+   ```bash
+   zbarcam -Sx-density=1 -Sy-density=1
+   ```
+
+## See Also
+
+- [zbarimg](/cli/zbarimg) - Scan barcodes from image files
+- [Configuration Options](/advanced/configuration) - Detailed decoder configuration reference

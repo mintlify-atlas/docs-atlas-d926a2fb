@@ -1,0 +1,475 @@
+---
+title: 'Qt Widget'
+description: 'Embed barcode scanning directly into Qt applications with the QZBar widget'
+---
+
+## Overview
+
+The `QZBar` widget embeds a barcode reader directly into Qt4/Qt5 based GUI applications. It can process barcodes from a video source (webcam) or from individual `QImage` objects supplied to the `scanImage()` slot.
+
+The widget is available in the `zbar` namespace and supports both Qt4 and Qt5 (Qt5 is automatically detected at compile time).
+
+<Note>
+The Qt widget requires Qt4 or Qt5 development libraries. It is distributed under the GNU Lesser Public License v2.1.
+</Note>
+
+## Installation
+
+### Build Requirements
+
+To build applications with the QZBar widget, you need:
+
+- Qt4 or Qt5 development libraries
+- ZBar library and headers
+- pkg-config (for locating libraries)
+
+### Linking
+
+When building your application, link against the ZBar Qt library:
+
+```bash
+# Using pkg-config
+g++ myapp.cpp -o myapp $(pkg-config --cflags --libs zbar-qt5)
+
+# Or for Qt4
+g++ myapp.cpp -o myapp $(pkg-config --cflags --libs zbar-qt)
+```
+
+If using qmake, add to your `.pro` file:
+
+```qmake
+CONFIG += link_pkgconfig
+PKGCONFIG += zbar-qt5
+```
+
+## QZBar Class Reference
+
+### Header
+
+```cpp
+#include <zbar/QZBar.h>
+```
+
+### Class Declaration
+
+```cpp
+namespace zbar {
+
+class QZBar : public QWidget
+{
+    Q_OBJECT
+
+    Q_PROPERTY(QString videoDevice READ videoDevice WRITE setVideoDevice)
+    Q_PROPERTY(bool videoEnabled READ isVideoEnabled WRITE setVideoEnabled)
+    Q_PROPERTY(bool videoOpened READ isVideoOpened)
+
+public:
+    QZBar(QWidget *parent = NULL, int verbosity = 0);
+    ~QZBar();
+    
+    // Video device management
+    QString videoDevice() const;
+    bool isVideoEnabled() const;
+    bool isVideoOpened() const;
+
+public Q_SLOTS:
+    void setVideoDevice(const QString &videoDevice);
+    void setVideoEnabled(bool videoEnabled = true);
+    void scanImage(const QImage &image);
+    
+    // Configuration
+    int set_config(std::string cfgstr);
+    int set_config(zbar_symbol_type_t symbology, zbar_config_t config, int value);
+    int get_config(zbar_symbol_type_t symbology, zbar_config_t config, int &value);
+    
+    // Camera controls
+    int set_control(char *name, bool value);
+    int set_control(char *name, int value);
+    int get_control(char *name, bool *value);
+    int get_control(char *name, int *value);
+    
+    // Video settings
+    void request_size(unsigned width, unsigned height, bool trigger = true);
+    int get_resolution(int index, unsigned &width, unsigned &height, float &max_fps);
+    unsigned videoWidth();
+    unsigned videoHeight();
+
+Q_SIGNALS:
+    void videoOpened(bool videoOpened);
+    void decoded(int type, const QString &data);
+    void decodedText(const QString &text);
+};
+
+}
+```
+
+## Properties
+
+### videoDevice (QString)
+
+The currently opened video device. Setting a new device opens it and automatically sets `videoEnabled` to `true`.
+
+- Use an empty string to close the currently opened device
+- Device names are platform-specific (e.g., `/dev/video0` on Linux)
+- Opening is asynchronous - use the `videoOpened` signal to track state
+
+### videoEnabled (bool)
+
+Video device streaming state. Use to pause/resume video scanning.
+
+- Has no effect unless a video device is opened
+- Can be toggled to pause scanning without closing the device
+
+### videoOpened (bool, read-only)
+
+Video device opened state. This property is `true` when a device is successfully opened.
+
+## Basic Usage
+
+### Video Scanning Application
+
+<Steps>
+
+<Step title="Create the widget">
+Create a QZBar instance and add it to your layout:
+
+```cpp
+#include <QApplication>
+#include <QVBoxLayout>
+#include <QWidget>
+#include <zbar/QZBar.h>
+
+int main(int argc, char *argv[])
+{
+    QApplication app(argc, argv);
+    
+    QWidget window;
+    QVBoxLayout *layout = new QVBoxLayout(&window);
+    
+    // Create the QZBar widget
+    zbar::QZBar *zbar = new zbar::QZBar(&window);
+    layout->addWidget(zbar);
+    
+    window.show();
+    return app.exec();
+}
+```
+</Step>
+
+<Step title="Connect signals">
+Connect to the decoded signals to receive barcode results:
+
+```cpp
+// Connect the decoded signal
+QObject::connect(zbar, &zbar::QZBar::decoded,
+    [](int type, const QString &data) {
+        qDebug() << "Decoded:" << zbar_get_symbol_name((zbar_symbol_type_t)type)
+                 << "Data:" << data;
+    });
+
+// Or use the combined text signal
+QObject::connect(zbar, &zbar::QZBar::decodedText,
+    [](const QString &text) {
+        qDebug() << "Decoded:" << text;  // Format: "SYMBOL_TYPE:data"
+    });
+```
+</Step>
+
+<Step title="Open video device">
+Open a video device to start scanning:
+
+```cpp
+// Set the video device (e.g., /dev/video0 on Linux)
+zbar->setVideoDevice("/dev/video0");
+
+// Or use the default device
+zbar->setVideoDevice("");  // Opens first available device
+```
+</Step>
+
+</Steps>
+
+### Image Scanning
+
+You can also scan individual images without a video device:
+
+```cpp
+// Load an image
+QImage image("barcode.png");
+
+// Scan the image
+zbar->scanImage(image);
+
+// Results will be emitted via the decoded signals
+```
+
+## Configuration and Customization
+
+### Scanner Configuration
+
+Configure which barcode types to detect:
+
+```cpp
+// Enable only QR codes
+zbar->set_config(ZBAR_QRCODE, ZBAR_CFG_ENABLE, 1);
+zbar->set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 0);
+
+// Disable Code-128
+zbar->set_config(ZBAR_CODE128, ZBAR_CFG_ENABLE, 0);
+
+// Set minimum quality threshold
+zbar->set_config(ZBAR_NONE, ZBAR_CFG_MIN_LEN, 4);
+```
+
+### Video Resolution
+
+Request a specific video resolution:
+
+```cpp
+// Request 1280x720 resolution
+zbar->request_size(1280, 720);
+
+// Query available resolutions
+unsigned width, height;
+float max_fps;
+for (int i = 0; ; i++) {
+    if (zbar->get_resolution(i, width, height, max_fps) < 0)
+        break;
+    qDebug() << "Resolution:" << width << "x" << height 
+             << "@" << max_fps << "fps";
+}
+```
+
+### Camera Controls
+
+Access camera-specific controls:
+
+```cpp
+// Set brightness
+zbar->set_control("brightness", 128);
+
+// Get current brightness value
+int brightness;
+zbar->get_control("brightness", &brightness);
+
+// Enable auto-exposure
+zbar->set_control("auto_exposure", true);
+```
+
+## Signals and Events
+
+### videoOpened(bool opened)
+
+Emitted when a video device is opened or closed.
+
+```cpp
+connect(zbar, &zbar::QZBar::videoOpened, [](bool opened) {
+    if (opened) {
+        qDebug() << "Video device opened successfully";
+    } else {
+        qDebug() << "Video device closed";
+    }
+});
+```
+
+### decoded(int type, const QString &data)
+
+Emitted when a barcode is decoded. The symbol type and data are provided separately.
+
+```cpp
+connect(zbar, &zbar::QZBar::decoded,
+    [](int type, const QString &data) {
+        QString typeName = zbar_get_symbol_name((zbar_symbol_type_t)type);
+        qDebug() << "Type:" << typeName << "Data:" << data;
+    });
+```
+
+### decodedText(const QString &text)
+
+Emitted when a barcode is decoded. The symbol type name is prefixed to the data, separated by a colon.
+
+```cpp
+connect(zbar, &zbar::QZBar::decodedText,
+    [](const QString &text) {
+        qDebug() << text;  // e.g., "QR-Code:https://example.com"
+    });
+```
+
+## Complete Example Application
+
+Here's a complete example with video controls and result display:
+
+<CodeGroup>
+
+```cpp main.cpp
+#include <QApplication>
+#include <QComboBox>
+#include <QLabel>
+#include <QPushButton>
+#include <QTextEdit>
+#include <QVBoxLayout>
+#include <QWidget>
+#include <zbar/QZBar.h>
+
+class BarcodeScanner : public QWidget
+{
+    Q_OBJECT
+
+public:
+    BarcodeScanner(QWidget *parent = nullptr)
+        : QWidget(parent)
+    {
+        // Create layout
+        QVBoxLayout *layout = new QVBoxLayout(this);
+
+        // Create QZBar widget
+        zbar = new zbar::QZBar(this);
+        layout->addWidget(zbar);
+
+        // Video device selector
+        QLabel *deviceLabel = new QLabel("Video Device:", this);
+        layout->addWidget(deviceLabel);
+
+        deviceCombo = new QComboBox(this);
+        deviceCombo->addItem("/dev/video0");
+        deviceCombo->addItem("/dev/video1");
+        layout->addWidget(deviceCombo);
+
+        // Enable/disable button
+        enableButton = new QPushButton("Start Scanning", this);
+        enableButton->setCheckable(true);
+        layout->addWidget(enableButton);
+
+        // Results display
+        results = new QTextEdit(this);
+        results->setReadOnly(true);
+        results->setMaximumHeight(150);
+        layout->addWidget(results);
+
+        // Connect signals
+        connect(deviceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                this, &BarcodeScanner::onDeviceChanged);
+        
+        connect(enableButton, &QPushButton::toggled,
+                zbar, &zbar::QZBar::setVideoEnabled);
+        
+        connect(zbar, &zbar::QZBar::videoOpened, this, [this](bool opened) {
+            enableButton->setEnabled(opened);
+            if (opened) {
+                results->append("Video device opened successfully");
+            }
+        });
+        
+        connect(zbar, &zbar::QZBar::decoded,
+                this, &BarcodeScanner::onDecoded);
+
+        // Open initial device
+        zbar->setVideoDevice(deviceCombo->currentText());
+    }
+
+private slots:
+    void onDeviceChanged(int index)
+    {
+        zbar->setVideoDevice(deviceCombo->currentText());
+    }
+
+    void onDecoded(int type, const QString &data)
+    {
+        QString typeName = zbar_get_symbol_name((zbar_symbol_type_t)type);
+        results->append(QString("%1: %2").arg(typeName, data));
+    }
+
+private:
+    zbar::QZBar *zbar;
+    QComboBox *deviceCombo;
+    QPushButton *enableButton;
+    QTextEdit *results;
+};
+
+int main(int argc, char *argv[])
+{
+    QApplication app(argc, argv);
+
+    BarcodeScanner window;
+    window.setWindowTitle("ZBar Barcode Scanner");
+    window.resize(640, 600);
+    window.show();
+
+    return app.exec();
+}
+
+#include "main.moc"
+```
+
+```qmake scanner.pro
+QT += core gui widgets
+
+TARGET = barcode_scanner
+TEMPLATE = app
+
+CONFIG += link_pkgconfig
+PKGCONFIG += zbar-qt5
+
+SOURCES += main.cpp
+```
+
+```bash Build and Run
+qmake scanner.pro
+make
+./barcode_scanner
+```
+
+</CodeGroup>
+
+## Drag and Drop Support
+
+The QZBar widget automatically supports drag and drop of image files:
+
+```cpp
+// Drag and drop is enabled by default
+// Users can drag image files onto the widget to scan them
+// No additional code is required
+
+// The widget will automatically call scanImage() on dropped files
+```
+
+<Tip>
+The widget handles drag events for common image formats. Simply drag an image file containing a barcode onto the widget to scan it.
+</Tip>
+
+## Thread Safety
+
+<Note>
+The QZBar widget uses an internal thread (`QZBarThread`) for video processing. All public methods are thread-safe and can be called from the main GUI thread.
+</Note>
+
+All signals are emitted in the main GUI thread, so you can safely update UI elements from signal handlers without additional synchronization.
+
+## Troubleshooting
+
+### Video device fails to open
+
+- Verify the device path is correct (e.g., `/dev/video0` on Linux)
+- Check device permissions (user may need to be in the `video` group)
+- Ensure the device is not already in use by another application
+- Check kernel logs with `dmesg` for V4L2-related errors
+
+### Widget not displaying video
+
+- Ensure the widget is visible (`show()` called)
+- Check that `videoEnabled` is set to `true`
+- Verify the widget has a non-zero size in the layout
+- On X11 systems, ensure proper window attachment
+
+### No barcodes detected
+
+- Ensure adequate lighting conditions
+- Verify the barcode type is enabled in the configuration
+- Check image quality and focus
+- Try adjusting the video resolution
+
+## See Also
+
+- [GTK Widget](/widgets/gtk-widget) - GTK+ version of the barcode scanner widget
+- [C API](/api/image-scanner) - Low-level C API for custom integrations
+- [Python Bindings](/bindings/python) - Python interface for ZBar

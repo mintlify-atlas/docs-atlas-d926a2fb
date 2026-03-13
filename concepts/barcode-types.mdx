@@ -1,0 +1,445 @@
+---
+title: Barcode Types
+description: Complete guide to barcode formats supported by ZBar
+---
+
+ZBar supports a comprehensive range of 1D and 2D barcode symbologies for various applications. This page covers all supported formats, their characteristics, and when to use each one.
+
+## Supported Symbologies
+
+ZBar supports the following barcode formats:
+
+### 1D Linear Barcodes
+
+<AccordionGroup>
+  <Accordion title="EAN-13 (European Article Number)" icon="barcode">
+    **Symbol Type:** `ZBAR_EAN13` (value: 13)
+    
+    The most common barcode format for retail products worldwide. EAN-13 encodes 13 digits including a country code, manufacturer code, product code, and check digit.
+    
+    **Use Cases:**
+    - Retail product identification
+    - International trade
+    - Inventory management
+    
+    **Configuration Options:**
+    - `ZBAR_CFG_ENABLE` - Enable/disable EAN-13 detection
+    - `ZBAR_CFG_EMIT_CHECK` - Return check digit in decoded data
+    - `ZBAR_CFG_ADD_CHECK` - Enable check digit when optional
+    
+    ```c
+    zbar_image_scanner_set_config(scanner, ZBAR_EAN13, 
+                                  ZBAR_CFG_ENABLE, 1);
+    ```
+  </Accordion>
+
+  <Accordion title="UPC-A (Universal Product Code)" icon="barcode">
+    **Symbol Type:** `ZBAR_UPCA` (value: 12)
+    
+    The standard barcode for retail products in North America. UPC-A encodes 12 digits and is structurally similar to EAN-13.
+    
+    **Use Cases:**
+    - North American retail
+    - Grocery and pharmacy items
+    - General merchandise
+    
+    **Special Note:** UPC-A is a subset of EAN-13 with a leading zero.
+    
+    ```c
+    zbar_image_scanner_set_config(scanner, ZBAR_UPCA, 
+                                  ZBAR_CFG_ENABLE, 1);
+    ```
+  </Accordion>
+
+  <Accordion title="UPC-E (UPC Compressed)" icon="barcode">
+    **Symbol Type:** `ZBAR_UPCE` (value: 9)
+    
+    Compressed version of UPC-A for small packages. Encodes 6 digits with implicit zeros.
+    
+    **Use Cases:**
+    - Small product packaging
+    - Limited label space
+    - Convenience store items
+  </Accordion>
+
+  <Accordion title="EAN-8" icon="barcode">
+    **Symbol Type:** `ZBAR_EAN8` (value: 8)
+    
+    Shortened version of EAN-13 for small packages. Encodes 8 digits.
+    
+    **Use Cases:**
+    - Small retail products
+    - Limited packaging space
+    - Cigarettes, gum, cosmetics
+  </Accordion>
+
+  <Accordion title="Code 128" icon="barcode">
+    **Symbol Type:** `ZBAR_CODE128` (value: 128)
+    
+    High-density linear barcode capable of encoding the full ASCII character set. One of the most versatile 1D barcodes.
+    
+    **Use Cases:**
+    - Shipping and logistics
+    - Serial numbers
+    - Internal inventory systems
+    - Package tracking
+    
+    **Features:**
+    - Full ASCII character support (with `ZBAR_CFG_ASCII`)
+    - Variable length data
+    - Compact representation
+    - GS1-128 support (with `ZBAR_MOD_GS1` modifier)
+    
+    **Configuration:**
+    ```c
+    // Enable full ASCII character set
+    zbar_image_scanner_set_config(scanner, ZBAR_CODE128, 
+                                  ZBAR_CFG_ASCII, 1);
+    
+    // Enable binary data mode (no text conversion)
+    zbar_image_scanner_set_config(scanner, ZBAR_CODE128, 
+                                  ZBAR_CFG_BINARY, 1);
+    ```
+    
+    <Info>Code 128 has a default uncertainty value of 0 for optimal reliability.</Info>
+  </Accordion>
+
+  <Accordion title="Code 39" icon="barcode">
+    **Symbol Type:** `ZBAR_CODE39` (value: 39)
+    
+    Widely used alphanumeric barcode format. Encodes uppercase letters, digits, and some special characters.
+    
+    **Use Cases:**
+    - Automotive industry
+    - Defense logistics (LOGMARS)
+    - Healthcare
+    - Industrial applications
+    
+    **Character Set:** 0-9, A-Z, space, and symbols: - . $ / + %
+    
+    **Configuration:**
+    ```c
+    // Enable full ASCII using paired characters
+    zbar_image_scanner_set_config(scanner, ZBAR_CODE39, 
+                                  ZBAR_CFG_ASCII, 1);
+    ```
+  </Accordion>
+
+  <Accordion title="Code 93" icon="barcode">
+    **Symbol Type:** `ZBAR_CODE93` (value: 93)
+    
+    More compact than Code 39 with better data density. Primarily used by Canada Post.
+    
+    **Use Cases:**
+    - Canadian postal services
+    - Electronic component tracking
+    - Retail inventory
+    
+    **Advantages over Code 39:**
+    - Higher data density
+    - Two check characters for better error detection
+    - Full ASCII support
+  </Accordion>
+
+  <Accordion title="Interleaved 2 of 5 (I25)" icon="barcode">
+    **Symbol Type:** `ZBAR_I25` (value: 25)
+    
+    Numeric-only barcode with high density. Data must contain an even number of digits.
+    
+    **Use Cases:**
+    - Warehouse and distribution
+    - Industrial inventory
+    - Shipping containers (ITF-14)
+    
+    **Limitations:**
+    - Numeric data only (0-9)
+    - Even number of digits required
+    - No built-in error detection
+  </Accordion>
+
+  <Accordion title="Codabar" icon="barcode">
+    **Symbol Type:** `ZBAR_CODABAR` (value: 38)
+    
+    Self-checking numeric barcode with start/stop characters.
+    
+    **Use Cases:**
+    - Blood banks
+    - Libraries
+    - FedEx airbills
+    - Photo labs
+    
+    **Character Set:** 0-9 and symbols: - $ : / . +
+    
+    <Note>Codabar has a default uncertainty value of 1 (vs 0 for other symbologies).</Note>
+  </Accordion>
+
+  <Accordion title="GS1 DataBar (RSS)" icon="barcode">
+    **Symbol Type:** `ZBAR_DATABAR` (value: 34)
+    
+    Modern barcode for retail applications, especially fresh foods. More compact than EAN/UPC.
+    
+    **Use Cases:**
+    - Fresh produce
+    - Coupons
+    - Variable weight items
+    - Healthcare products
+    
+    **Advantages:**
+    - Encodes more data than EAN/UPC
+    - Smaller minimum size
+    - Supports expiration dates and lot numbers
+  </Accordion>
+
+  <Accordion title="GS1 DataBar Expanded" icon="barcode">
+    **Symbol Type:** `ZBAR_DATABAR_EXP` (value: 35)
+    
+    Extended version of DataBar with variable length support.
+    
+    **Use Cases:**
+    - Product identification with supplementary data
+    - Batch/lot tracking
+    - Expiration date encoding
+  </Accordion>
+</AccordionGroup>
+
+### 2D Matrix Barcodes
+
+<CardGroup cols={2}>
+  <Card title="QR Code" icon="qrcode" href="#qr-code-details">
+    Most popular 2D barcode with high capacity and error correction
+  </Card>
+  
+  <Card title="SQ Code" icon="square" href="#sq-code-details">
+    Specialized 2D format for specific applications
+  </Card>
+</CardGroup>
+
+#### QR Code Details
+
+**Symbol Type:** `ZBAR_QRCODE` (value: 64)
+
+QR (Quick Response) Codes are the most widely used 2D barcodes, capable of storing large amounts of data with built-in error correction.
+
+**Features:**
+- **High capacity:** Up to 7,089 numeric or 4,296 alphanumeric characters
+- **Error correction:** Reed-Solomon error correction (L, M, Q, H levels)
+- **Omnidirectional reading:** Can be scanned from any angle
+- **Structured append:** Multiple QR codes can be linked
+
+**Use Cases:**
+- URLs and web links
+- Contact information (vCards)
+- WiFi credentials
+- Mobile payments
+- Product authentication
+- Event tickets
+
+**Configuration:**
+```c
+// QR codes have uncertainty set to 0 by default
+zbar_image_scanner_set_config(scanner, ZBAR_QRCODE, 
+                              ZBAR_CFG_UNCERTAINTY, 0);
+
+// Binary mode is disabled by default for QR codes
+zbar_image_scanner_set_config(scanner, ZBAR_QRCODE, 
+                              ZBAR_CFG_BINARY, 0);
+```
+
+**Implementation Notes:**
+QR code detection uses a specialized finder pattern detection algorithm that looks for the characteristic position detection patterns (the squares in three corners). The decoder handles:
+- Finder pattern detection
+- Timing pattern analysis
+- Format information extraction
+- Error correction decoding
+
+<Info>ZBar's QR code reader was introduced in version 0.10.</Info>
+
+#### SQ Code Details
+
+**Symbol Type:** `ZBAR_SQCODE` (value: 80)
+
+SQ Code is a specialized 2D barcode format for specific applications.
+
+**Use Cases:**
+- Industrial marking
+- Specialized tracking systems
+
+<Note>SQ Code support was added in ZBar version 0.20.1.</Note>
+
+### Book Identifiers
+
+ZBar can automatically extract ISBN numbers from EAN-13 barcodes:
+
+<AccordionGroup>
+  <Accordion title="ISBN-10" icon="book">
+    **Symbol Type:** `ZBAR_ISBN10` (value: 10)
+    
+    10-digit International Standard Book Number extracted from EAN-13 barcodes with prefix 978.
+    
+    **Note:** Automatically decoded from EAN-13 when detected.
+  </Accordion>
+
+  <Accordion title="ISBN-13" icon="book">
+    **Symbol Type:** `ZBAR_ISBN13` (value: 14)
+    
+    13-digit International Standard Book Number from EAN-13 barcodes with prefix 978 or 979.
+    
+    **Note:** Automatically decoded from EAN-13 when detected.
+  </Accordion>
+</AccordionGroup>
+
+### Add-On Codes
+
+Supplementary barcodes that extend EAN/UPC codes:
+
+- **EAN-2** (`ZBAR_EAN2`, value: 2): 2-digit add-on for magazines (issue number)
+- **EAN-5** (`ZBAR_EAN5`, value: 5): 5-digit add-on for books (suggested retail price)
+
+<Info>Add-ons are represented as `ZBAR_COMPOSITE` symbols with EAN-2 or EAN-5 components since version 0.11.</Info>
+
+### Composite Symbols
+
+**Symbol Type:** `ZBAR_COMPOSITE` (value: 15)
+
+Composite results combine a primary EAN/UPC symbol with an add-on component.
+
+**Configuration:**
+```c
+// Enable composite symbol detection
+zbar_image_scanner_set_config(scanner, ZBAR_COMPOSITE, 
+                              ZBAR_CFG_ENABLE, 1);
+```
+
+## Format Selection and Configuration
+
+### Enabling/Disabling Symbologies
+
+By default, ZBar attempts to decode all supported symbologies. You can selectively enable or disable formats:
+
+```c
+// Disable all symbologies
+zbar_image_scanner_set_config(scanner, 0, ZBAR_CFG_ENABLE, 0);
+
+// Enable only QR codes
+zbar_image_scanner_set_config(scanner, ZBAR_QRCODE, ZBAR_CFG_ENABLE, 1);
+
+// Enable only EAN/UPC family
+zbar_image_scanner_set_config(scanner, ZBAR_EAN13, ZBAR_CFG_ENABLE, 1);
+zbar_image_scanner_set_config(scanner, ZBAR_UPCA, ZBAR_CFG_ENABLE, 1);
+zbar_image_scanner_set_config(scanner, ZBAR_UPCE, ZBAR_CFG_ENABLE, 1);
+zbar_image_scanner_set_config(scanner, ZBAR_EAN8, ZBAR_CFG_ENABLE, 1);
+```
+
+### Data Length Constraints
+
+You can enforce minimum and maximum data lengths for specific symbologies:
+
+```c
+// Set minimum length for Code 128
+zbar_image_scanner_set_config(scanner, ZBAR_CODE128, 
+                              ZBAR_CFG_MIN_LEN, 10);
+
+// Set maximum length for Code 39
+zbar_image_scanner_set_config(scanner, ZBAR_CODE39, 
+                              ZBAR_CFG_MAX_LEN, 20);
+```
+
+### Uncertainty Configuration
+
+The uncertainty parameter controls video consistency checking. Higher values require more consecutive frames to report a result:
+
+```c
+// Default uncertainty is 2 for most symbologies
+zbar_image_scanner_set_config(scanner, 0, ZBAR_CFG_UNCERTAINTY, 2);
+
+// Code 128 uses 0 (immediate reporting)
+zbar_image_scanner_set_config(scanner, ZBAR_CODE128, 
+                              ZBAR_CFG_UNCERTAINTY, 0);
+```
+
+<Tip>Set uncertainty to 0 for single-image scanning. Use higher values (2-3) for video streams to reduce false positives.</Tip>
+
+## Symbol Modifiers
+
+Decoded symbols may include modifier flags indicating special characteristics:
+
+### GS1 Modifier
+
+**Flag:** `ZBAR_MOD_GS1`
+
+Indicates the barcode contains GS1 Application Identifier data (e.g., FNC1 before first data character). The data can be parsed as a sequence of GS1 AIs.
+
+```c
+unsigned int modifiers = zbar_symbol_get_modifiers(symbol);
+if (modifiers & (1 << ZBAR_MOD_GS1)) {
+    // Parse as GS1 data
+}
+```
+
+### AIM Modifier
+
+**Flag:** `ZBAR_MOD_AIM`
+
+Indicates AIM reserved tagging (FNC1 after first character or digit pair).
+
+## Choosing the Right Barcode Type
+
+<CardGroup cols={2}>
+  <Card title="Retail & Consumer" icon="shopping-cart">
+    - **EAN-13/UPC-A:** Standard retail products
+    - **EAN-8/UPC-E:** Small packages
+    - **DataBar:** Fresh produce, coupons
+    - **QR Code:** Mobile engagement, URLs
+  </Card>
+  
+  <Card title="Logistics & Shipping" icon="truck">
+    - **Code 128:** Package tracking, serial numbers
+    - **I25:** Shipping containers (ITF-14)
+    - **Code 39:** Industrial applications
+    - **DataBar Expanded:** Batch/lot tracking
+  </Card>
+  
+  <Card title="Healthcare" icon="heartbeat">
+    - **Code 39:** HIBC labels
+    - **Code 128:** Drug labels, specimens
+    - **Codabar:** Blood banks
+    - **DataBar:** Pharmaceutical products
+  </Card>
+  
+  <Card title="General Purpose" icon="code">
+    - **QR Code:** Maximum flexibility, high capacity
+    - **Code 128:** Alphanumeric + symbols
+    - **Code 39:** Simple alphanumeric
+    - **I25:** Numeric only
+  </Card>
+</CardGroup>
+
+## Performance Considerations
+
+### 1D vs 2D Scanning
+
+- **1D barcodes** are decoded from line scans, making them faster but requiring proper alignment
+- **2D barcodes** can be read from any orientation but require more processing power
+
+### Scan Density Trade-offs
+
+Enabling more symbologies increases detection capability but may impact performance:
+
+```c
+// High-performance mode: enable only needed symbologies
+zbar_image_scanner_set_config(scanner, 0, ZBAR_CFG_ENABLE, 0);
+zbar_image_scanner_set_config(scanner, ZBAR_CODE128, ZBAR_CFG_ENABLE, 1);
+zbar_image_scanner_set_config(scanner, ZBAR_QRCODE, ZBAR_CFG_ENABLE, 1);
+
+// Reduce scan density for better performance
+zbar_image_scanner_set_config(scanner, 0, ZBAR_CFG_X_DENSITY, 2);
+zbar_image_scanner_set_config(scanner, 0, ZBAR_CFG_Y_DENSITY, 2);
+```
+
+<Tip>For known barcode types, disable unused symbologies to improve speed and reduce false positives.</Tip>
+
+## Related Resources
+
+- [Image Scanning](/concepts/image-scanning) - Learn how ZBar processes images
+- [Video Capture](/concepts/video-capture) - Real-time barcode scanning from video
+- [Configuration Reference](/advanced/configuration) - Complete configuration options

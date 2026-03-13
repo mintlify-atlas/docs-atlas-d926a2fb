@@ -1,0 +1,533 @@
+---
+title: 'Video'
+description: 'Mid-level video source abstraction for capturing images from video devices'
+---
+
+## Overview
+
+The `zbar::Video` class provides a mid-level abstraction for video capture. It manages video devices and captures images that can be passed to an `ImageScanner` for barcode detection.
+
+**Header:** `<zbar.h>` (includes `zbar/Video.h`)
+
+**Namespace:** `zbar`
+
+## Constructors
+
+### Video() (default)
+
+```cpp
+Video(zbar_video_t *video = NULL)
+```
+
+Creates a new Video object.
+
+<ParamField path="video" type="zbar_video_t*" default="NULL">
+  Optional C video object to wrap. If NULL, creates a new video object.
+</ParamField>
+
+### Video() (with device)
+
+```cpp
+Video(std::string &device)
+```
+
+Creates a new Video object and opens the specified device.
+
+<ParamField path="device" type="std::string&" required>
+  Path to the video device (e.g., "/dev/video0")
+</ParamField>
+
+**Throws:** Exception if device cannot be opened
+
+## Destructor
+
+### ~Video()
+
+```cpp
+~Video()
+```
+
+Destroys the video object and releases all resources.
+
+## Device Management
+
+### open()
+
+```cpp
+void open(std::string &device)
+```
+
+Opens and probes a video device.
+
+<ParamField path="device" type="std::string&" required>
+  Path to the video device to open
+</ParamField>
+
+**Throws:** Exception if device cannot be opened
+
+**Example:**
+```cpp
+Video video;
+video.open("/dev/video0");
+```
+
+### close()
+
+```cpp
+void close()
+```
+
+Closes the video device if currently open.
+
+**Throws:** Exception on error
+
+**Example:**
+```cpp
+video.close();
+```
+
+## Initialization Methods
+
+### init() (FourCC code)
+
+```cpp
+void init(unsigned long fourcc)
+```
+
+Initializes video using a specific format for debugging.
+
+<ParamField path="fourcc" type="unsigned long" required>
+  FourCC format code (e.g., from `zbar_fourcc_parse()`)
+</ParamField>
+
+**Throws:** Exception on initialization failure
+
+### init() (format string)
+
+```cpp
+void init(std::string &format)
+```
+
+Initializes video using a specific format string.
+
+<ParamField path="format" type="std::string&" required>
+  FourCC format string (e.g., "YUYV", "MJPG")
+</ParamField>
+
+**Throws:** Exception on initialization failure
+
+**Example:**
+```cpp
+std::string format = "YUYV";
+video.init(format);
+```
+
+## Image Capture
+
+### enable()
+
+```cpp
+void enable(bool enable = true)
+```
+
+Starts or stops video capture.
+
+<ParamField path="enable" type="bool" default="true">
+  True to start capture, false to stop
+</ParamField>
+
+**Throws:** Exception on error
+
+**Example:**
+```cpp
+video.enable(true);   // Start capture
+video.enable(false);  // Stop capture
+```
+
+### next_image()
+
+```cpp
+Image next_image()
+```
+
+Retrieves the next captured image from the video stream. This method blocks until an image is available.
+
+<ResponseField name="return" type="Image">
+  The next captured image
+</ResponseField>
+
+**Throws:** Exception if capture fails or no image available
+
+**Example:**
+```cpp
+video.enable();
+while (true) {
+    Image image = video.next_image();
+    // Process image...
+}
+```
+
+## Device Information
+
+### get_fd()
+
+```cpp
+int get_fd()
+```
+
+Retrieves the file descriptor associated with the open video device (Unix/Linux only).
+
+<ResponseField name="return" type="int">
+  File descriptor, or -1 if not applicable
+</ResponseField>
+
+**Example:**
+```cpp
+int fd = video.get_fd();
+if (fd >= 0) {
+    // Can use with select/poll for async I/O
+}
+```
+
+### get_width()
+
+```cpp
+int get_width()
+```
+
+Retrieves the current output image width.
+
+<ResponseField name="return" type="int">
+  Image width in pixels
+</ResponseField>
+
+### get_height()
+
+```cpp
+int get_height()
+```
+
+Retrieves the current output image height.
+
+<ResponseField name="return" type="int">
+  Image height in pixels
+</ResponseField>
+
+**Example:**
+```cpp
+int width = video.get_width();
+int height = video.get_height();
+cout << "Resolution: " << width << "x" << height << endl;
+```
+
+## Configuration Methods
+
+### request_size()
+
+```cpp
+void request_size(int width, int height)
+```
+
+Requests a preferred image size from the video device. The actual size may differ based on device capabilities.
+
+<ParamField path="width" type="int" required>
+  Desired image width in pixels
+</ParamField>
+
+<ParamField path="height" type="int" required>
+  Desired image height in pixels
+</ParamField>
+
+**Since:** 0.6
+
+**Example:**
+```cpp
+video.request_size(640, 480);
+video.open("/dev/video0");
+```
+
+### request_interface()
+
+```cpp
+void request_interface(int version)
+```
+
+Requests a preferred driver interface version for debug/testing.
+
+<ParamField path="version" type="int" required>
+  Interface version number
+</ParamField>
+
+**Since:** 0.6
+
+### request_iomode()
+
+```cpp
+void request_iomode(int iomode)
+```
+
+Requests a preferred I/O mode for debug/testing.
+
+<ParamField path="iomode" type="int" required>
+  I/O mode value
+</ParamField>
+
+**Throws:** Exception on error
+
+**Since:** 0.7
+
+## Device Controls
+
+### get_controls()
+
+```cpp
+struct video_controls_s* get_controls(int index)
+```
+
+Retrieves information about a device control at the specified index.
+
+<ParamField path="index" type="int" required>
+  Control index (0-based)
+</ParamField>
+
+<ResponseField name="return" type="video_controls_s*">
+  Pointer to control information structure, or NULL if index is invalid
+</ResponseField>
+
+**Since:** 0.11
+
+### set_control() (integer)
+
+```cpp
+int set_control(const char *name, int value)
+```
+
+Sets the value of an integer control.
+
+<ParamField path="name" type="const char*" required>
+  Control name (e.g., "brightness", "contrast")
+</ParamField>
+
+<ParamField path="value" type="int" required>
+  Value to set
+</ParamField>
+
+<ResponseField name="return" type="int">
+  0 on success, non-zero on error
+</ResponseField>
+
+**Since:** 0.11
+
+### set_control() (boolean)
+
+```cpp
+int set_control(const char *name, bool value)
+```
+
+Sets the value of a boolean control.
+
+<ParamField path="name" type="const char*" required>
+  Control name
+</ParamField>
+
+<ParamField path="value" type="bool" required>
+  Value to set
+</ParamField>
+
+<ResponseField name="return" type="int">
+  0 on success, non-zero on error
+</ResponseField>
+
+**Since:** 0.11
+
+### get_control() (integer)
+
+```cpp
+int get_control(const char *name, int *value)
+```
+
+Retrieves the value of an integer control.
+
+<ParamField path="name" type="const char*" required>
+  Control name
+</ParamField>
+
+<ParamField path="value" type="int*" required>
+  Pointer to store the retrieved value
+</ParamField>
+
+<ResponseField name="return" type="int">
+  0 on success, non-zero on error
+</ResponseField>
+
+**Since:** 0.11
+
+### get_control() (boolean)
+
+```cpp
+int get_control(const char *name, bool *value)
+```
+
+Retrieves the value of a boolean control.
+
+<ParamField path="name" type="const char*" required>
+  Control name
+</ParamField>
+
+<ParamField path="value" type="bool*" required>
+  Pointer to store the retrieved value
+</ParamField>
+
+<ResponseField name="return" type="int">
+  0 on success, non-zero on error
+</ResponseField>
+
+**Since:** 0.11
+
+**Example:**
+```cpp
+// Set brightness
+video.set_control("brightness", 128);
+
+// Get current contrast
+int contrast;
+if (video.get_control("contrast", &contrast) == 0) {
+    cout << "Contrast: " << contrast << endl;
+}
+```
+
+## Resolution Information
+
+### get_resolution()
+
+```cpp
+struct video_resolution_s* get_resolution(int index)
+```
+
+Retrieves information about a supported resolution at the specified index.
+
+<ParamField path="index" type="int" required>
+  Resolution index (0-based)
+</ParamField>
+
+<ResponseField name="return" type="video_resolution_s*">
+  Pointer to resolution information structure, or NULL if index is invalid
+</ResponseField>
+
+**Since:** 0.22
+
+**Example:**
+```cpp
+int index = 0;
+while (auto *res = video.get_resolution(index++)) {
+    cout << "Resolution: " << res->width << "x" << res->height << endl;
+}
+```
+
+## Type Conversion
+
+### operator zbar_video_t*()
+
+```cpp
+operator zbar_video_t*() const
+```
+
+Casts to the underlying C video object.
+
+<ResponseField name="return" type="zbar_video_t*">
+  Pointer to the wrapped C video object
+</ResponseField>
+
+## Complete Example
+
+```cpp
+#include <iostream>
+#include <zbar.h>
+
+using namespace std;
+using namespace zbar;
+
+int main() {
+    try {
+        // Create video capture object
+        Video video;
+        
+        // Request specific resolution before opening
+        video.request_size(640, 480);
+        
+        // Open video device
+        string device = "/dev/video0";
+        video.open(device);
+        
+        // Get actual resolution
+        cout << "Opened device: " << device << endl;
+        cout << "Resolution: " << video.get_width() 
+             << "x" << video.get_height() << endl;
+        
+        // Adjust device controls
+        video.set_control("brightness", 128);
+        video.set_control("contrast", 32);
+        
+        // Create scanner
+        ImageScanner scanner;
+        scanner.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);
+        
+        // Start capture
+        video.enable();
+        
+        cout << "Scanning for barcodes..." << endl;
+        
+        // Capture and scan frames
+        while (true) {
+            // Get next image
+            Image image = video.next_image();
+            
+            // Scan for barcodes
+            int n = scanner.scan(image);
+            
+            // Process results
+            if (n > 0) {
+                for (auto symbol = image.symbol_begin();
+                     symbol != image.symbol_end(); ++symbol) {
+                    cout << "Found: " << symbol->get_type_name() 
+                         << " = " << symbol->get_data() << endl;
+                    
+                    // Exit after first barcode
+                    goto done;
+                }
+            }
+        }
+        
+    done:
+        video.enable(false);
+        video.close();
+        
+    } catch (exception &e) {
+        cerr << "Error: " << e.what() << endl;
+        return 1;
+    }
+    
+    return 0;
+}
+```
+
+## Platform Support
+
+### Linux
+- Uses Video4Linux2 (V4L2) API
+- Supports most USB and built-in cameras
+- File descriptor available via `get_fd()` for integration with `select()`/`poll()`
+
+### Windows
+- Uses DirectShow or VFW
+- File descriptor not available
+
+### macOS
+- Uses AVFoundation or QTKit
+- File descriptor not available
+
+## Related Classes
+
+- [Image](/api/image) - Image data container
+- [ImageScanner](/api/image-scanner) - Barcode scanner for images
+- [Processor](/api/cpp/processor) - High-level integrated processor

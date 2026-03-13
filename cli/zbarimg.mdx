@@ -1,0 +1,546 @@
+---
+title: zbarimg
+description: Image file barcode scanner
+icon: image
+---
+
+## Overview
+
+`zbarimg` is a command-line tool that scans and decodes barcodes from one or more image files. It supports a wide variety of image formats through ImageMagick or GraphicsMagick libraries.
+
+The program can process single images, multiple images in batch mode, and even multi-page documents like PDFs. It outputs decoded barcode data to stdout in various formats.
+
+## Command Syntax
+
+```bash
+zbarimg [options] <image>...
+```
+
+### Arguments
+
+<ParamField path="image" type="string" required>
+  One or more image files to scan. Can be any format supported by ImageMagick/GraphicsMagick (PNG, JPEG, GIF, BMP, TIFF, PDF, etc.)
+</ParamField>
+
+## Options
+
+### General Options
+
+<ParamField path="-h, --help" type="flag">
+  Display help text and exit
+</ParamField>
+
+<ParamField path="--version" type="flag">
+  Display version information and exit
+</ParamField>
+
+<ParamField path="-v, --verbose" type="flag">
+  Increase debug output level. Can be specified multiple times for more verbosity.
+</ParamField>
+
+<ParamField path="--verbose=N" type="integer">
+  Set specific debug output level (0-255)
+</ParamField>
+
+### Output Options
+
+<ParamField path="-q, --quiet" type="flag">
+  Minimal output - only print decoded symbol data without summary statistics
+</ParamField>
+
+<ParamField path="--xml" type="flag">
+  Enable XML output format
+</ParamField>
+
+<ParamField path="--noxml" type="flag">
+  Disable XML output format (default)
+</ParamField>
+
+<ParamField path="--raw" type="flag">
+  Output decoded symbol data without converting charsets or adding format prefixes. Binary mode.
+</ParamField>
+
+<ParamField path="--polygon" type="flag">
+  Output points delimiting the code zone along with decoded symbol data
+</ParamField>
+
+### Scanning Options
+
+<ParamField path="-1, --oneshot" type="flag">
+  Exit after scanning one barcode successfully
+</ParamField>
+
+### Display Options
+
+<ParamField path="-d, --display" type="flag">
+  Enable display of following images to the screen (requires GUI support)
+</ParamField>
+
+<ParamField path="-D, --nodisplay" type="flag">
+  Disable display of following images (default)
+</ParamField>
+
+### Configuration Options
+
+<ParamField path="-S<CONFIG>[=<VALUE>]" type="string">
+  Set decoder/scanner configuration option to specified value (or 1 if value omitted)
+</ParamField>
+
+<ParamField path="--set <CONFIG>[=<VALUE>]" type="string">
+  Set decoder/scanner configuration option (long form)
+</ParamField>
+
+<ParamField path="--nodbus" type="flag">
+  Disable D-Bus message broadcasting (if D-Bus support is compiled in)
+</ParamField>
+
+## Supported Image Formats
+
+zbarimg supports any image format that ImageMagick or GraphicsMagick can read, including:
+
+- **Raster formats**: PNG, JPEG, GIF, BMP, TIFF, WebP
+- **Document formats**: PDF (multi-page support)
+- **Raw formats**: Various camera RAW formats
+- **Vector formats**: SVG (rasterized)
+- **Other formats**: ICO, PSD, TGA, and many more
+
+<Note>
+  For PDF files, zbarimg automatically sets a higher DPI (900) to ensure barcode quality. Each page is scanned separately.
+</Note>
+
+## Examples
+
+### Basic Usage
+
+Scan a single image:
+
+```bash
+zbarimg barcode.png
+```
+
+Output:
+```
+QR-CODE:https://example.com
+scanned 1 barcode symbols from 1 images in 0.02 seconds
+```
+
+### Multiple Images
+
+Scan multiple image files in batch:
+
+```bash
+zbarimg image1.jpg image2.png image3.gif
+```
+
+### Using Wildcards
+
+Scan all images in a directory:
+
+```bash
+zbarimg *.png
+```
+
+```bash
+zbarimg photos/*.jpg
+```
+
+### Quiet Mode
+
+Output only the decoded data without statistics:
+
+```bash
+zbarimg --quiet barcode.png
+```
+
+Output:
+```
+QR-CODE:https://example.com
+```
+
+### Raw Binary Output
+
+Output raw decoded data without formatting:
+
+```bash
+zbarimg --raw barcode.png > data.bin
+```
+
+### XML Output
+
+Output decoded data in XML format:
+
+```bash
+zbarimg --xml barcode.png
+```
+
+Output:
+```xml
+<barcodes xmlns='http://zbar.sourceforge.net/2008/barcode'>
+<source href='barcode.png'>
+<index num='0'>
+<symbol type='QR-CODE' quality='1'>
+<data>https://example.com</data>
+</symbol>
+</index>
+</source>
+</barcodes>
+```
+
+### Polygon Output
+
+Output barcode location coordinates:
+
+```bash
+zbarimg --polygon barcode.png
+```
+
+Output:
+```
+QR-CODE:+45,+78 +312,+78 +312,+345 +45,+345:https://example.com
+```
+
+### Enable Specific Symbology
+
+Scan for only QR codes:
+
+```bash
+zbarimg -Sqrcode.enable -S*.disable barcode.png
+```
+
+Enable all EAN/UPC variants:
+
+```bash
+zbarimg -Sean*.enable invoice.pdf
+```
+
+Enable ISBN-10 specifically:
+
+```bash
+zbarimg -Sisbn10.enable book-cover.jpg
+```
+
+### Batch Processing with Specific Config
+
+Scan multiple images with custom configuration:
+
+```bash
+zbarimg -Sx-density=2 -Sy-density=2 *.jpg
+```
+
+### Processing PDF Documents
+
+Scan all pages of a PDF:
+
+```bash
+zbarimg document.pdf
+```
+
+### Display Images During Scanning
+
+Show images as they are scanned:
+
+```bash
+zbarimg --display *.png
+```
+
+<Note>
+  With `--display`, press 'q' to stop scanning or any other key to continue to the next image.
+</Note>
+
+### Pipeline Processing
+
+Use zbarimg in a pipeline:
+
+```bash
+find . -name '*.jpg' | xargs zbarimg --quiet
+```
+
+## Configuration Settings
+
+You can configure various decoder and scanner options using `-S` or `--set`:
+
+### Symbology Control
+
+```bash
+# Enable/disable specific symbology
+zbarimg -Sqrcode.enable image.png
+zbarimg -Scode128.disable image.png
+
+# Enable all symbologies
+zbarimg -S*.enable image.png
+
+# Disable all except one
+zbarimg -S*.disable -Sean13.enable image.png
+```
+
+### Scanning Density
+
+```bash
+# Increase scan density (1-9, higher = more thorough but slower)
+zbarimg -Sx-density=3 -Sy-density=3 image.png
+
+# Reduce density for faster scanning
+zbarimg -Sx-density=1 -Sy-density=1 image.png
+```
+
+### Binary Output
+
+```bash
+# Enable binary mode for raw data
+zbarimg -Sbinary image.png
+```
+
+## Output Format
+
+### Default Format
+
+By default, zbarimg outputs:
+
+```
+SYMBOLOGY-TYPE:DATA
+```
+
+Followed by a summary:
+```
+scanned N barcode symbols from M images in X.XX seconds
+```
+
+Example:
+```
+EAN-13:5901234123457
+QR-CODE:https://example.com
+scanned 2 barcode symbols from 1 images in 0.03 seconds
+```
+
+### Polygon Format
+
+With `--polygon`, the format is:
+
+```
+SYMBOLOGY-TYPE:X1,Y1 X2,Y2 X3,Y3 X4,Y4:DATA
+```
+
+The coordinates define the corners of the detected barcode region.
+
+### XML Format
+
+With `--xml`, output is structured XML:
+
+```xml
+<barcodes xmlns='http://zbar.sourceforge.net/2008/barcode'>
+  <source href='filename'>
+    <index num='page-number'>
+      <symbol type='SYMBOLOGY' quality='confidence-score'>
+        <data>decoded-data</data>
+      </symbol>
+    </index>
+  </source>
+</barcodes>
+```
+
+### Raw Format
+
+With `--raw`, only the raw decoded bytes are output with no formatting, suitable for binary data.
+
+## Exit Codes
+
+- **0**: Success - all images processed successfully and at least one barcode found
+- **1**: Error - processing error occurred (invalid image, read error, etc.)
+- **2**: Fatal error - severe error (ImageMagick failure, memory allocation, etc.)
+- **3**: User interrupted - scanning was interrupted by user (when using `--display`)
+- **4**: No barcodes found - images processed successfully but no barcodes detected
+
+## Statistics and Warnings
+
+When barcodes are not found in some images, zbarimg displays helpful diagnostics:
+
+```
+WARNING: barcode data was not detected in some image(s)
+Things to check:
+  - is the barcode type supported?
+  - is the barcode large enough in the image?
+  - is the barcode mostly in focus?
+  - is there sufficient contrast/illumination?
+  - Did you enable the barcode type?
+```
+
+## Supported Barcode Symbologies
+
+zbarimg can decode the following barcode types (when enabled):
+
+- **EAN/UPC**: EAN-13, EAN-8, EAN-2, EAN-5, UPC-A, UPC-E, ISBN-10, ISBN-13
+- **DataBar**: DataBar, DataBar Expanded
+- **Code 128**: Full ASCII support
+- **Code 93**: Full ASCII support
+- **Code 39**: Standard and Full ASCII
+- **Codabar**: (NW-7)
+- **Interleaved 2 of 5**: (I25)
+- **QR Code**: All versions and error correction levels
+- **SQ Code**: (if compiled with support)
+- **PDF417**: Multi-row barcodes (if compiled with support)
+
+<Note>
+  Some symbologies may be disabled by default. Use `-S<symbology>.enable` to enable specific types.
+</Note>
+
+## Performance Tips
+
+### Faster Scanning
+
+<Tip>
+  For faster processing:
+  1. Reduce scanning density: `-Sx-density=1 -Sy-density=1`
+  2. Enable only needed symbologies: `-Sqrcode.enable -S*.disable`
+  3. Use lower resolution images
+</Tip>
+
+### Better Detection
+
+<Tip>
+  For better barcode detection:
+  1. Increase scanning density: `-Sx-density=3 -Sy-density=3`
+  2. Ensure good image quality (focus, lighting, contrast)
+  3. Use higher resolution images (especially for small barcodes)
+  4. Enable all relevant symbologies
+</Tip>
+
+## Batch Processing Examples
+
+### Process All Images in Directory
+
+```bash
+#!/bin/bash
+for img in /path/to/images/*.jpg; do
+    echo "Scanning: $img"
+    zbarimg --quiet "$img"
+done
+```
+
+### Extract Barcodes to CSV
+
+```bash
+for img in *.png; do
+    result=$(zbarimg --quiet --raw "$img" 2>/dev/null)
+    echo "$img,$result"
+done > barcodes.csv
+```
+
+### Process with Error Handling
+
+```bash
+#!/bin/bash
+for img in *.jpg; do
+    if zbarimg --quiet "$img" 2>/dev/null; then
+        echo "✓ Found barcode in $img"
+    else
+        echo "✗ No barcode in $img"
+    fi
+done
+```
+
+## Troubleshooting
+
+### ImageMagick Not Found
+
+<Warning>
+  If you see errors about ImageMagick not being found, ensure it's installed:
+  - **Ubuntu/Debian**: `sudo apt-get install libmagickwand-dev`
+  - **Fedora/RHEL**: `sudo dnf install ImageMagick-devel`
+  - **macOS**: `brew install imagemagick`
+</Warning>
+
+### No Barcodes Detected
+
+If barcodes are not being detected:
+
+1. **Enable all symbologies**:
+   ```bash
+   zbarimg -S*.enable image.png
+   ```
+
+2. **Increase scanning density**:
+   ```bash
+   zbarimg -Sx-density=3 -Sy-density=3 image.png
+   ```
+
+3. **Check image quality**: Ensure the image is in focus, well-lit, and has sufficient resolution
+
+4. **Verify barcode size**: The barcode should be at least 100x100 pixels
+
+5. **Try verbose mode** to see processing details:
+   ```bash
+   zbarimg --verbose=9 image.png
+   ```
+
+### PDF Processing Issues
+
+<Note>
+  For PDF files, ensure ImageMagick has PDF support enabled. You may need to install Ghostscript:
+  - **Ubuntu/Debian**: `sudo apt-get install ghostscript`
+  - **macOS**: `brew install ghostscript`
+</Note>
+
+### Memory Issues with Large Images
+
+For very large images or batch processing:
+
+1. Process images in smaller batches
+2. Reduce image resolution before scanning
+3. Set ImageMagick memory limits if needed
+
+## Integration Examples
+
+### Python Integration
+
+```python
+import subprocess
+import json
+
+def scan_barcode(image_path):
+    result = subprocess.run(
+        ['zbarimg', '--quiet', '--raw', image_path],
+        capture_output=True,
+        text=True
+    )
+    return result.stdout.strip() if result.returncode == 0 else None
+
+barcode = scan_barcode('image.png')
+print(f"Decoded: {barcode}")
+```
+
+### Shell Script Processing
+
+```bash
+#!/bin/bash
+# Scan all images and log results
+
+LOGFILE="scan_results.log"
+
+for image in "$@"; do
+    echo "Processing: $image" | tee -a "$LOGFILE"
+    if result=$(zbarimg --quiet "$image" 2>&1); then
+        echo "  Found: $result" | tee -a "$LOGFILE"
+    else
+        echo "  No barcode found" | tee -a "$LOGFILE"
+    fi
+done
+```
+
+## D-Bus Integration
+
+When D-Bus support is enabled, zbarimg broadcasts decoded barcode events:
+
+```bash
+# Monitor barcode events
+dbus-monitor --system interface=org.linuxtv.Zbar1.Code
+```
+
+<Tip>
+  D-Bus integration allows system-wide notifications when barcodes are scanned, useful for workflow automation.
+</Tip>
+
+## See Also
+
+- [zbarcam](/cli/zbarcam) - Scan barcodes from video stream
+- [Configuration Options](/advanced/configuration) - Detailed decoder configuration reference
+- [Python Bindings](/bindings/python) - Use ZBar from Python code

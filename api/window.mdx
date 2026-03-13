@@ -1,0 +1,284 @@
+---
+title: "Window"
+description: "Mid-level output window abstraction for displaying images"
+---
+
+## Overview
+
+The Window interface (`zbar_window_t`) provides mid-level access to platform display windows for showing images and scan results.
+
+## Data Type
+
+```c
+typedef struct zbar_window_s zbar_window_t;
+```
+
+Opaque window object.
+
+## Constructor and Destructor
+
+### zbar_window_create()
+
+```c
+zbar_window_t* zbar_window_create(void)
+```
+
+Creates a new window object.
+
+**Returns:** Pointer to new window object
+
+### zbar_window_destroy()
+
+```c
+void zbar_window_destroy(zbar_window_t *window)
+```
+
+Destroys a window object and releases resources.
+
+## Window Management
+
+### zbar_window_attach()
+
+```c
+int zbar_window_attach(
+    zbar_window_t *window,
+    void *x11_display_w32_hwnd,
+    unsigned long x11_drawable
+)
+```
+
+Associates the window with an existing platform window.
+
+<ParamField path="window" type="zbar_window_t*" required>
+  Window object
+</ParamField>
+
+<ParamField path="x11_display_w32_hwnd" type="void*" required>
+  - X11: Display pointer
+  - Windows: HWND handle
+</ParamField>
+
+<ParamField path="x11_drawable" type="unsigned long" required>
+  - X11: Drawable ID
+  - Windows: Ignored (pass 0)
+</ParamField>
+
+<Note>
+Pass NULL to detach from the resource. Further input will be ignored.
+</Note>
+
+**Returns:** `0` on success, `-1` on error
+
+## Display Control
+
+### zbar_window_draw()
+
+```c
+int zbar_window_draw(
+    zbar_window_t *window,
+    zbar_image_t *image
+)
+```
+
+Draws a new image into the output window. Input images are scaled to fit.
+
+**Returns:** `0` on success, `-1` on error
+
+### zbar_window_redraw()
+
+```c
+int zbar_window_redraw(zbar_window_t *window)
+```
+
+Redraws the last image (exposure handler).
+
+**Returns:** `0` on success, `-1` on error
+
+### zbar_window_resize()
+
+```c
+int zbar_window_resize(
+    zbar_window_t *window,
+    unsigned width,
+    unsigned height
+)
+```
+
+Resizes the image window (reconfigure handler). This does NOT update the window contents.
+
+**Returns:** `0` on success, `-1` on error
+
+<Note>
+Behavior changed in 0.4 - no longer redraws window.
+</Note>
+
+**Since:** 0.3, changed in 0.4
+
+## Overlay Control
+
+### zbar_window_set_overlay()
+
+```c
+void zbar_window_set_overlay(
+    zbar_window_t *window,
+    int level
+)
+```
+
+Controls the content level of the reader overlay. The overlay displays graphical data for informational or debug purposes.
+
+<ParamField path="level" type="int" required>
+  Overlay level:
+  - `0` - Disable overlay
+  - `1` - Outline decoded symbols (default)
+  - `2` - Also track and display input frame rate
+</ParamField>
+
+<Note>
+Higher overlay levels may decrease performance.
+</Note>
+
+### zbar_window_get_overlay()
+
+```c
+int zbar_window_get_overlay(const zbar_window_t *window)
+```
+
+Retrieves current overlay level.
+
+**Since:** 0.10
+
+## Error Handling
+
+### zbar_window_error_spew()
+
+```c
+static inline int zbar_window_error_spew(
+    const zbar_window_t *window,
+    int verbosity
+)
+```
+
+Displays error details to stderr.
+
+**Returns:** Non-zero value suitable for exit()
+
+### zbar_window_error_string()
+
+```c
+static inline const char* zbar_window_error_string(
+    const zbar_window_t *window,
+    int verbosity
+)
+```
+
+Retrieves error detail string.
+
+### zbar_window_get_error_code()
+
+```c
+static inline zbar_error_t zbar_window_get_error_code(
+    const zbar_window_t *window
+)
+```
+
+Retrieves error type code.
+
+## Format Negotiation
+
+### zbar_negotiate_format()
+
+```c
+int zbar_negotiate_format(
+    zbar_video_t *video,
+    zbar_window_t *window
+)
+```
+
+Selects a compatible format between video input and window output. The selection algorithm:
+1. Attempts to use a format shared by both video and window
+2. Chooses formats most useful for barcode scanning
+3. Minimizes conversion cost when necessary
+
+**Returns:** `0` on success, `-1` on error
+
+## Usage Example
+
+```c window_display.c
+#include <zbar.h>
+#include <X11/Xlib.h>
+
+int main() {
+    // Open X11 display
+    Display *display = XOpenDisplay(NULL);
+    Window root = DefaultRootWindow(display);
+    
+    // Create X11 window
+    Window x_window = XCreateSimpleWindow(display, root, 0, 0,
+                                          640, 480, 0, 0, 0);
+    XMapWindow(display, x_window);
+    XFlush(display);
+    
+    // Create ZBar window and attach to X11 window
+    zbar_window_t *window = zbar_window_create();
+    zbar_window_attach(window, display, x_window);
+    
+    // Set overlay to show decoded symbols
+    zbar_window_set_overlay(window, 1);
+    
+    // Create video and negotiate format
+    zbar_video_t *video = zbar_video_create();
+    zbar_video_open(video, "/dev/video0");
+    zbar_negotiate_format(video, window);
+    
+    // Create scanner
+    zbar_image_scanner_t *scanner = zbar_image_scanner_create();
+    
+    // Enable video
+    zbar_video_enable(video, 1);
+    
+    // Process frames
+    for (int i = 0; i < 100; i++) {
+        zbar_image_t *image = zbar_video_next_image(video);
+        
+        if (image) {
+            // Scan image
+            zbar_scan_image(scanner, image);
+            
+            // Display in window (with overlay)
+            zbar_window_draw(window, image);
+            
+            zbar_image_destroy(image);
+        }
+    }
+    
+    // Cleanup
+    zbar_video_enable(video, 0);
+    zbar_image_scanner_destroy(scanner);
+    zbar_window_destroy(window);
+    zbar_video_destroy(video);
+    XCloseDisplay(display);
+    
+    return 0;
+}
+```
+
+## Platform Notes
+
+### X11 (Linux/Unix)
+
+- First parameter is `Display*` pointer
+- Second parameter is the `Drawable` (Window or Pixmap)
+- Link with `-lX11`
+
+### Windows
+
+- First parameter is `HWND` handle
+- Second parameter is ignored (pass 0)
+- Link with appropriate Windows libraries
+
+## See Also
+
+- [Video API](/api/video) - Video capture
+- [Processor API](/api/processor) - High-level processing with built-in window
+- [Image API](/api/image) - Image management

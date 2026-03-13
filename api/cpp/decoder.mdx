@@ -1,0 +1,485 @@
+---
+title: 'Decoder'
+description: 'Low-level bar width stream decoder for extracting encoded data from symbols'
+---
+
+## Overview
+
+The `zbar::Decoder` class provides a low-level interface for decoding barcodes from a stream of bar and space widths. It identifies symbols and extracts encoded data without requiring image data.
+
+**Header:** `<zbar.h>` (includes `zbar/Decoder.h`)
+
+**Namespace:** `zbar`
+
+## Handler Class
+
+### Decoder::Handler
+
+Abstract base class for handling decode results.
+
+```cpp
+class Handler {
+public:
+    virtual ~Handler();
+    virtual void decode_callback(Decoder &decoder) = 0;
+};
+```
+
+Applications should subclass this and implement `decode_callback()` to process decode results.
+
+**Example:**
+```cpp
+class MyHandler : public Decoder::Handler {
+    void decode_callback(Decoder &decoder) {
+        cout << "Decoded: " << decoder.get_data() << endl;
+    }
+};
+```
+
+## Constructor
+
+### Decoder()
+
+```cpp
+Decoder()
+```
+
+Creates a new Decoder instance.
+
+## Destructor
+
+### ~Decoder()
+
+```cpp
+~Decoder()
+```
+
+Destroys the decoder and releases all resources.
+
+## State Management
+
+### reset()
+
+```cpp
+void reset()
+```
+
+Clears all decoder state, resetting it to initial conditions.
+
+**Example:**
+```cpp
+decoder.reset();
+```
+
+### new_scan()
+
+```cpp
+void new_scan()
+```
+
+Marks the start of a new scan pass. Call this when beginning to scan a new symbol or barcode.
+
+**Example:**
+```cpp
+decoder.new_scan();
+for (unsigned width : widths) {
+    decoder.decode_width(width);
+}
+```
+
+## Decoding Methods
+
+### decode_width()
+
+```cpp
+zbar_symbol_type_t decode_width(unsigned width)
+```
+
+Processes the next bar or space width from the input stream.
+
+<ParamField path="width" type="unsigned" required>
+  Width of the next bar (if current color is black) or space (if white)
+</ParamField>
+
+<ResponseField name="return" type="zbar_symbol_type_t">
+  The symbol type if a symbol was just decoded, otherwise `ZBAR_NONE` (0) or `ZBAR_PARTIAL`
+</ResponseField>
+
+**Example:**
+```cpp
+zbar_symbol_type_t type = decoder.decode_width(42);
+if (type != ZBAR_NONE && type != ZBAR_PARTIAL) {
+    cout << "Decoded: " << decoder.get_data() << endl;
+}
+```
+
+### operator&lt;&lt;()
+
+```cpp
+Decoder& operator<<(unsigned width)
+```
+
+Convenience operator for processing bar/space widths.
+
+<ParamField path="width" type="unsigned" required>
+  Width to process
+</ParamField>
+
+<ResponseField name="return" type="Decoder&">
+  Reference to this decoder for chaining
+</ResponseField>
+
+**Example:**
+```cpp
+decoder << 10 << 20 << 15 << 25;
+```
+
+## State Query Methods
+
+### get_color()
+
+```cpp
+zbar_color_t get_color() const
+```
+
+Retrieves the color of the **next** element to be passed to the decoder.
+
+<ResponseField name="return" type="zbar_color_t">
+  `ZBAR_SPACE` (white/background) or `ZBAR_BAR` (black/foreground)
+</ResponseField>
+
+**Example:**
+```cpp
+if (decoder.get_color() == ZBAR_BAR) {
+    // Next width should be a bar (black)
+}
+```
+
+### get_type()
+
+```cpp
+zbar_symbol_type_t get_type() const
+```
+
+Retrieves the type of the last decoded symbol.
+
+<ResponseField name="return" type="zbar_symbol_type_t">
+  Symbol type (e.g., `ZBAR_EAN13`, `ZBAR_QRCODE`, etc.)
+</ResponseField>
+
+### get_symbol_name()
+
+```cpp
+const char* get_symbol_name() const
+```
+
+Retrieves the string name of the last decoded symbol type.
+
+<ResponseField name="return" type="const char*">
+  Symbol type name (e.g., "EAN-13", "QR-Code")
+</ResponseField>
+
+**Example:**
+```cpp
+cout << "Type: " << decoder.get_symbol_name() << endl;
+```
+
+## Data Retrieval
+
+### get_data_chars()
+
+```cpp
+const char* get_data_chars() const
+```
+
+Retrieves the last decoded data as a null-terminated C string.
+
+<ResponseField name="return" type="const char*">
+  Pointer to decoded data
+</ResponseField>
+
+### get_data_string()
+
+```cpp
+const std::string get_data_string() const
+```
+
+Retrieves the last decoded data as a C++ string. This method correctly handles binary data.
+
+<ResponseField name="return" type="std::string">
+  Decoded data as std::string
+</ResponseField>
+
+### get_data()
+
+```cpp
+const std::string get_data() const
+```
+
+Retrieves the last decoded data as a C++ string (alias for `get_data_string()`).
+
+<ResponseField name="return" type="std::string">
+  Decoded data as std::string
+</ResponseField>
+
+**Example:**
+```cpp
+std::string data = decoder.get_data();
+cout << "Decoded: " << data << endl;
+```
+
+### get_data_length()
+
+```cpp
+int get_data_length() const
+```
+
+Retrieves the length of the decoded binary data.
+
+<ResponseField name="return" type="int">
+  Length of decoded data in bytes
+</ResponseField>
+
+## Additional Information
+
+### get_direction()
+
+```cpp
+int get_direction() const
+```
+
+Retrieves the direction of the last decode.
+
+<ResponseField name="return" type="int">
+  Direction value: 1 for forward, -1 for reverse, 0 for unknown
+</ResponseField>
+
+**Since:** 0.11
+
+### get_addon_name()
+
+```cpp
+const char* get_addon_name() const
+```
+
+Retrieves the string name for any addon symbol.
+
+<ResponseField name="return" type="const char*">
+  Addon name string
+</ResponseField>
+
+**Deprecated:** Since 0.11
+
+## Configuration Methods
+
+### set_config() (integer)
+
+```cpp
+int set_config(zbar_symbol_type_t symbology, 
+               zbar_config_t config, 
+               int value)
+```
+
+Sets configuration for the specified symbology.
+
+<ParamField path="symbology" type="zbar_symbol_type_t" required>
+  The symbology type (use `ZBAR_NONE` for all symbologies)
+</ParamField>
+
+<ParamField path="config" type="zbar_config_t" required>
+  The configuration parameter (e.g., `ZBAR_CFG_ENABLE`, `ZBAR_CFG_MIN_LEN`)
+</ParamField>
+
+<ParamField path="value" type="int" required>
+  The value to set
+</ParamField>
+
+<ResponseField name="return" type="int">
+  0 on success, non-zero on error
+</ResponseField>
+
+**Since:** 0.4
+
+**Example:**
+```cpp
+// Enable all symbologies
+decoder.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);
+
+// Disable EAN-13
+decoder.set_config(ZBAR_EAN13, ZBAR_CFG_ENABLE, 0);
+```
+
+### set_config() (string)
+
+```cpp
+int set_config(std::string cfgstr)
+```
+
+Sets configuration from a configuration string.
+
+<ParamField path="cfgstr" type="std::string" required>
+  Configuration string (e.g., "ean13.enable=0")
+</ParamField>
+
+<ResponseField name="return" type="int">
+  0 on success, non-zero on error
+</ResponseField>
+
+**Since:** 0.4
+
+## Handler Setup
+
+### set_handler()
+
+```cpp
+void set_handler(Handler &handler)
+```
+
+Sets up a callback handler to process decode results.
+
+<ParamField path="handler" type="Handler&" required>
+  Reference to handler object implementing `decode_callback()`
+</ParamField>
+
+**Example:**
+```cpp
+class MyHandler : public Decoder::Handler {
+public:
+    void decode_callback(Decoder &decoder) {
+        cout << "Symbol: " << decoder.get_symbol_name() << endl;
+        cout << "Data: " << decoder.get_data() << endl;
+        cout << "Direction: " << decoder.get_direction() << endl;
+    }
+};
+
+Decoder decoder;
+MyHandler handler;
+decoder.set_handler(handler);
+```
+
+## Complete Example
+
+```cpp
+#include <iostream>
+#include <vector>
+#include <zbar.h>
+
+using namespace std;
+using namespace zbar;
+
+// Custom handler for decode results
+class MyDecodeHandler : public Decoder::Handler {
+public:
+    void decode_callback(Decoder &decoder) {
+        cout << "========== Decode Result =========" << endl;
+        cout << "Type:      " << decoder.get_symbol_name() << endl;
+        cout << "Data:      " << decoder.get_data() << endl;
+        cout << "Length:    " << decoder.get_data_length() << endl;
+        cout << "Direction: " << decoder.get_direction() << endl;
+        cout << "==================================" << endl;
+    }
+};
+
+int main() {
+    // Create decoder
+    Decoder decoder;
+    
+    // Configure decoder
+    decoder.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);
+    
+    // Set up handler
+    MyDecodeHandler handler;
+    decoder.set_handler(handler);
+    
+    // Example: Decode from a stream of bar/space widths
+    // These widths would typically come from a Scanner
+    vector<unsigned> widths = {
+        10, 20, 10, 30, 15, 25, 20, 10,
+        15, 20, 25, 15, 10, 30, 20, 15
+        // ... more widths
+    };
+    
+    // Start a new scan
+    decoder.new_scan();
+    
+    // Process each width
+    for (unsigned width : widths) {
+        zbar_symbol_type_t result = decoder.decode_width(width);
+        
+        // Check if a symbol was decoded
+        if (result != ZBAR_NONE && result != ZBAR_PARTIAL) {
+            // Handler will be called automatically
+            // But we can also access data directly:
+            cout << "Direct access: " << decoder.get_data() << endl;
+        }
+    }
+    
+    return 0;
+}
+```
+
+## Usage with Scanner
+
+The Decoder is typically used together with a Scanner, which converts intensity values to bar/space widths:
+
+```cpp
+#include <zbar.h>
+
+using namespace zbar;
+
+// Create decoder and scanner
+Decoder decoder;
+Scanner scanner(&decoder);  // Scanner feeds decoder automatically
+
+// Configure
+decoder.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);
+
+// Set up handler
+MyDecodeHandler handler;
+decoder.set_handler(handler);
+
+// Start scanning
+scanner.new_scan();
+
+// Feed intensity values (0-255) to scanner
+for (int y : intensity_values) {
+    scanner.scan_y(y);
+    // Scanner automatically calls decoder.decode_width()
+    // Handler is invoked when symbols are decoded
+}
+```
+
+## Symbology Types
+
+Common `zbar_symbol_type_t` values:
+- `ZBAR_NONE` - No symbol or used to configure all types
+- `ZBAR_EAN8` - EAN-8
+- `ZBAR_EAN13` - EAN-13
+- `ZBAR_UPCA` - UPC-A
+- `ZBAR_UPCE` - UPC-E
+- `ZBAR_ISBN10` - ISBN-10
+- `ZBAR_ISBN13` - ISBN-13
+- `ZBAR_CODE39` - Code 39
+- `ZBAR_CODE93` - Code 93
+- `ZBAR_CODE128` - Code 128
+- `ZBAR_CODABAR` - Codabar
+- `ZBAR_I25` - Interleaved 2 of 5
+- `ZBAR_DATABAR` - GS1 DataBar
+- `ZBAR_DATABAR_EXP` - GS1 DataBar Expanded
+- `ZBAR_QRCODE` - QR Code
+- `ZBAR_SQCODE` - SQ Code
+
+## Configuration Options
+
+Common `zbar_config_t` values:
+- `ZBAR_CFG_ENABLE` - Enable/disable symbology (0 or 1)
+- `ZBAR_CFG_MIN_LEN` - Minimum data length
+- `ZBAR_CFG_MAX_LEN` - Maximum data length
+- `ZBAR_CFG_UNCERTAINTY` - Tolerance for widths
+- `ZBAR_CFG_POSITION` - Enable position tracking
+
+## Related Classes
+
+- [Scanner](/api/scanner) - Converts intensity values to bar/space widths
+- [ImageScanner](/api/image-scanner) - High-level scanner for 2D images
+- [Symbol](/api/symbol) - Decoded symbol result
