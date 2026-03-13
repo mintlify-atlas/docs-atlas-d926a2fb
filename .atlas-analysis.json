@@ -1,0 +1,119 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "ZBar",
+  "projectDescription": "Open source software suite for reading barcodes and QR codes from various sources including webcams and image files",
+  "theme": "aspen",
+  "primaryColor": "#dc0a7d",
+  "lightColor": "#0d8381",
+  "darkColor": "#a0a193",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/barcode-types",
+              "concepts/image-scanning",
+              "concepts/video-capture"
+            ]
+          },
+          {
+            "group": "CLI Tools",
+            "pages": [
+              "cli/zbarcam",
+              "cli/zbarimg"
+            ]
+          },
+          {
+            "group": "GUI Widgets",
+            "pages": [
+              "widgets/qt-widget",
+              "widgets/gtk-widget"
+            ]
+          },
+          {
+            "group": "Language Bindings",
+            "pages": [
+              "bindings/python",
+              "bindings/perl",
+              "bindings/java"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/configuration",
+              "advanced/v4l2-support",
+              "advanced/dbus-integration"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "C API",
+            "pages": [
+              "api/image-scanner",
+              "api/processor",
+              "api/video",
+              "api/window",
+              "api/decoder",
+              "api/scanner",
+              "api/symbol",
+              "api/image"
+            ]
+          },
+          {
+            "group": "C++ API",
+            "pages": [
+              "api/cpp/image-scanner",
+              "api/cpp/processor",
+              "api/cpp/video",
+              "api/cpp/decoder"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multi-format barcode and QR code scanning",
+    "Video4Linux2 webcam integration",
+    "Python, Perl, and Java language bindings",
+    "Qt and GTK GUI widgets",
+    "Command-line tools for image and video scanning",
+    "D-Bus integration for IPC",
+    "Support for EAN-13, UPC-A, Code 128, QR Code, and more"
+  ],
+  "publicApiSurface": [
+    "zbar_image_scanner_create",
+    "zbar_scan_image",
+    "zbar_processor_create",
+    "zbar_process_image",
+    "zbar_video_create",
+    "zbar_video_open",
+    "zbar_decoder_create",
+    "zbar_decode_width",
+    "zbar_symbol_get_data",
+    "zbar_symbol_get_type",
+    "ImageScanner (C++)",
+    "Processor (C++)",
+    "Video (C++)",
+    "zbar Python module",
+    "Barcode::ZBar (Perl)",
+    "zbarcam command",
+    "zbarimg command"
+  ]
+}
